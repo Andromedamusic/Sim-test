@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Estimator</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function PanelCanvas({ type }) {
+      return (
+        <div className="border rounded p-4 h-64 flex items-center justify-center bg-white">
+          <span className="text-gray-500 uppercase">{type} panel</span>
+        </div>
+      );
+    }
+
+    function InputPanel({ input, onChange, onCompute }) {
+      return (
+        <div className="bg-white rounded p-4 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input className="border p-1" name="sqft" placeholder="Sq ft" value={input.sqft} onChange={onChange} />
+            <input className="border p-1" name="beds" placeholder="Beds" value={input.beds} onChange={onChange} />
+            <input className="border p-1" name="baths" placeholder="Baths" value={input.baths} onChange={onChange} />
+            <input className="border p-1" name="yearBuilt" placeholder="Year" value={input.yearBuilt} onChange={onChange} />
+            <input className="border p-1" name="zip" placeholder="ZIP" value={input.zip} onChange={onChange} />
+          </div>
+          <button className="bg-blue-600 text-white px-3 py-1 rounded" onClick={onCompute}>Recalc</button>
+        </div>
+      );
+    }
+
+    function AnalyticsStrip() {
+      return (
+        <div className="col-span-full bg-white rounded p-4 text-center text-gray-500">
+          analytics coming soon
+        </div>
+      );
+    }
+
+    function App() {
+      const [input, setInput] = useState({ sqft:'', beds:'', baths:'', yearBuilt:'', zip:'' });
+
+      const handleChange = (e) => {
+        setInput({ ...input, [e.target.name]: e.target.value });
+      };
+
+      const compute = () => {
+        alert('Computation engine not implemented.');
+      };
+
+      return (
+        <main className="grid lg:grid-cols-[2fr_1fr] grid-cols-1 gap-4 p-4">
+          <section className="grid lg:grid-cols-2 grid-cols-1 gap-4">
+            <PanelCanvas type="legacy" />
+            <PanelCanvas type="modern" />
+          </section>
+          <InputPanel input={input} onChange={handleChange} onCompute={compute} />
+          <AnalyticsStrip />
+        </main>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

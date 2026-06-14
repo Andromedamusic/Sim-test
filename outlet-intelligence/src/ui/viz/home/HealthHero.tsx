@@ -146,7 +146,8 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
               <div
                 style={{
                   position: "relative",
-                  filter: !reduced ? glow(gradeColor, 0.45) : undefined,
+                  borderRadius: 999,
+                  boxShadow: !reduced ? glow(gradeColor, 0.45) : undefined,
                 }}
               >
                 <RadialGauge
@@ -217,7 +218,7 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                   position: "relative",
                 }}
               >
-                <div style={{ filter: !reduced ? glow(coverageColor, 0.3) : undefined }}>
+                <div style={{ borderRadius: 999, boxShadow: !reduced ? glow(coverageColor, 0.3) : undefined }}>
                   <RadialGauge
                     value={health.inspectionCoverage}
                     max={1}

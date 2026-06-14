@@ -6,9 +6,10 @@
 import React from "react";
 import { useStore } from "../../state/store";
 import { type HomeHealth } from "../../core";
-import { C, mono } from "../theme";
+import { C, mono, HUD } from "../theme";
 import { GlowCard, useReducedMotion } from "../anim";
 import { Card, Pill } from "../components";
+import { Bracket } from "../hud/Bracket";
 import { HealthHero } from "../viz/home/HealthHero";
 import { CircuitBus } from "../viz/home/CircuitBus";
 import { RoomHeatmap } from "../viz/home/RoomHeatmap";
@@ -20,9 +21,9 @@ const URGENCY_COLOR: Record<string, string> = {
 };
 
 const RANK_MEDAL: Record<number, { bg: string; color: string; label: string }> = {
-  1: { bg: "#2D2200", color: "#F59E0B", label: "🥇" },
-  2: { bg: "#1C1C1C", color: "#D1D5DB", label: "🥈" },
-  3: { bg: "#1C1200", color: "#D97706", label: "🥉" },
+  1: { bg: "#2D220099", color: "#F59E0B", label: "🥇" },
+  2: { bg: "#1C1C1C99", color: "#D1D5DB", label: "🥈" },
+  3: { bg: "#1C120099", color: "#D97706", label: "🥉" },
 };
 
 export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onGoMap: () => void }) {
@@ -48,7 +49,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
   return (
     <div
       className={reduced ? "" : "oi-stagger"}
-      style={{ display: "grid", gap: 14 }}
+      style={{ display: "grid", gap: 16 }}
     >
       {/* ── 1. HEALTH HERO ── */}
       <HealthHero
@@ -61,10 +62,13 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
       {/* ── 2. SYSTEMIC PATTERNS ── */}
       {orderedFlags.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <SectionHeader label="SYSTEMIC PATTERNS" sub="not device-local — wiring / circuit scope" />
+          <HudSectionHeader
+            label="SYSTEMIC PATTERNS"
+            sub="wiring / circuit-scope — not device-local"
+          />
           <div
             className={reduced ? "" : "oi-stagger"}
-            style={{ display: "grid", gap: 8 }}
+            style={{ display: "grid", gap: 9 }}
           >
             {orderedFlags.map((f, i) => {
               const uc = URGENCY_COLOR[f.urgency];
@@ -75,18 +79,35 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                   accent={uc}
                   className={isImmediate && !reduced ? "oi-pulse" : undefined}
                   style={{
-                    background:
-                      isImmediate
-                        ? "linear-gradient(160deg,#1A0606cc,#100808cc)"
-                        : "linear-gradient(160deg,#1A1200cc,#101008cc)",
+                    background: isImmediate
+                      ? "linear-gradient(160deg,#1A0606cc,#100808cc)"
+                      : "linear-gradient(160deg,#1A1200cc,#101008cc)",
+                    padding: "12px 14px",
+                    position: "relative",
                   }}
                 >
+                  {/* left status bar */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 8,
+                      bottom: 8,
+                      width: 3,
+                      borderRadius: "0 2px 2px 0",
+                      background: `linear-gradient(180deg, ${uc}dd 0%, ${uc}55 100%)`,
+                      boxShadow: `0 0 8px -2px ${uc}88`,
+                    }}
+                  />
+                  <Bracket color={uc} size={9} inset={4} weight={1.5} opacity={0.55} />
+
+                  {/* header row */}
                   <div
                     style={{
                       display: "flex",
                       gap: 8,
                       alignItems: "center",
-                      marginBottom: 6,
+                      marginBottom: 7,
                       flexWrap: "wrap",
                     }}
                   >
@@ -94,10 +115,10 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                     <span
                       style={{
                         color: C.warn,
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontFamily: mono,
                         fontWeight: 800,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.8,
                       }}
                     >
                       {f.type.replace(/_/g, " ")}
@@ -105,8 +126,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                     <span
                       style={{
                         marginLeft: "auto",
-                        color: C.dimmer,
-                        fontSize: 9.5,
+                        color: HUD.dimmer,
+                        fontSize: 9,
                         fontFamily: mono,
                       }}
                     >
@@ -116,8 +137,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                     </span>
                     <span
                       style={{
-                        color: C.dimmer,
-                        fontSize: 9,
+                        color: HUD.dimmer,
+                        fontSize: 8.5,
                         fontFamily: mono,
                       }}
                     >
@@ -126,28 +147,41 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                       {Math.round(f.confidence * 100)}% conf
                     </span>
                   </div>
+
+                  {/* description */}
                   <div
                     style={{
                       color: "#FDE68A",
                       fontSize: 11.5,
-                      lineHeight: 1.55,
-                      marginBottom: 4,
+                      lineHeight: 1.6,
+                      marginBottom: 5,
                     }}
                   >
                     {f.description}
                   </div>
+
+                  {/* remedy */}
                   <div
                     style={{
                       color: C.dim,
                       fontSize: 10.5,
                       lineHeight: 1.5,
                       borderTop: `1px solid ${C.border}`,
-                      paddingTop: 6,
-                      marginTop: 2,
+                      paddingTop: 7,
+                      marginTop: 3,
                     }}
                   >
-                    <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 9.5, letterSpacing: 1 }}>
-                      REMEDY{" "}
+                    <span
+                      style={{
+                        color: HUD.dimmer,
+                        fontFamily: mono,
+                        fontSize: 8.5,
+                        letterSpacing: 1.5,
+                        marginRight: 6,
+                        textTransform: "uppercase" as const,
+                      }}
+                    >
+                      REMEDY
                     </span>
                     {f.remedy}
                   </div>
@@ -158,27 +192,43 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
         </section>
       )}
 
-      {/* ── 3. CIRCUIT BUS ── */}
+      {/* ── 3. BREAKER PANEL (CircuitBus) ── */}
       {health.circuits.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <SectionHeader
+          <HudSectionHeader
             label="BREAKER PANEL"
-            sub={`${health.circuits.length} circuit${health.circuits.length !== 1 ? "s" : ""}`}
+            sub={`${health.circuits.length} circuit${health.circuits.length !== 1 ? "s" : ""} · bus-bar view`}
           />
-          <Card style={{ background: C.panel }}>
+          <Card
+            style={{
+              background: `linear-gradient(160deg, #0D131Dee, #0A0F17ee)`,
+              border: `1px solid ${HUD.line}`,
+              borderTop: `2px solid ${HUD.lineHi}`,
+              position: "relative",
+            }}
+          >
+            <Bracket color={HUD.cyan} size={10} inset={5} weight={1.5} opacity={0.4} />
             <CircuitBus circuits={health.circuits} nameOf={circuitName} />
           </Card>
         </section>
       )}
 
-      {/* ── 4. ROOM HEATMAP ── */}
+      {/* ── 4. FLOORS & ROOMS (RoomHeatmap) ── */}
       {health.floors.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <SectionHeader
+          <HudSectionHeader
             label="FLOORS & ROOMS"
             sub="grade heat by room"
           />
-          <Card style={{ background: C.panel }}>
+          <Card
+            style={{
+              background: `linear-gradient(160deg, #0D131Dee, #0A0F17ee)`,
+              border: `1px solid ${HUD.line}`,
+              borderTop: `2px solid ${HUD.lineHi}`,
+              position: "relative",
+            }}
+          >
+            <Bracket color={HUD.cyan} size={10} inset={5} weight={1.5} opacity={0.4} />
             <RoomHeatmap
               floors={health.floors}
               roomName={roomName}
@@ -190,17 +240,36 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
 
       {/* ── 5. PRIORITIZED REMEDIATION ── */}
       <section className={reduced ? "" : "oi-fadeup"}>
-        <SectionHeader label="PRIORITIZED REMEDIATION" sub="ordered by urgency + impact" />
-        <Card style={{ background: C.panel }}>
+        <HudSectionHeader
+          label="PRIORITIZED REMEDIATION"
+          sub="ordered by urgency + impact"
+        />
+        <Card
+          style={{
+            background: `linear-gradient(160deg, #0D131Dee, #0A0F17ee)`,
+            border: `1px solid ${HUD.line}`,
+            borderTop: `2px solid ${HUD.lineHi}`,
+            position: "relative",
+          }}
+        >
+          <Bracket color={HUD.cyan} size={10} inset={5} weight={1.5} opacity={0.4} />
           {health.remediation.length === 0 ? (
-            <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, textAlign: "center", padding: "16px 0" }}>
+            <div
+              style={{
+                color: C.dim,
+                fontSize: 11,
+                fontFamily: mono,
+                textAlign: "center",
+                padding: "18px 0",
+              }}
+            >
               No defects found yet.{" "}
               <button
                 onClick={onGoMap}
                 style={{
                   background: "none",
                   border: "none",
-                  color: C.blue,
+                  color: HUD.cyan,
                   fontSize: 11,
                   fontFamily: mono,
                   cursor: "pointer",
@@ -220,37 +289,69 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
               {health.remediation.slice(0, 12).map((it) => {
                 const uc = URGENCY_COLOR[it.urgency];
                 const medal = RANK_MEDAL[it.rank];
+                const isImmediate = it.urgency === "IMMEDIATE";
                 return (
                   <div
                     key={it.rank}
                     className="oi-lift"
                     style={{
                       display: "flex",
-                      gap: 10,
-                      padding: "9px 6px",
-                      borderBottom: `1px solid ${C.border}`,
+                      gap: 12,
+                      padding: "10px 8px",
+                      borderBottom: `1px solid ${HUD.line}`,
                       alignItems: "flex-start",
-                      background: medal
-                        ? medal.bg
-                        : "transparent",
+                      background: medal ? medal.bg : "transparent",
                       borderRadius: medal ? 8 : 0,
                       marginBottom: medal ? 2 : 0,
+                      position: "relative",
                     }}
                   >
+                    {/* urgency accent bar */}
+                    {isImmediate && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 6,
+                          bottom: 6,
+                          width: 2,
+                          borderRadius: "0 1px 1px 0",
+                          background: uc,
+                          boxShadow: `0 0 6px ${uc}88`,
+                        }}
+                        className={!reduced ? "oi-pulse" : undefined}
+                      />
+                    )}
+
                     {/* rank badge */}
                     <div
                       style={{
                         fontFamily: mono,
                         fontWeight: 800,
-                        minWidth: 26,
+                        minWidth: 30,
                         textAlign: "center",
                         flexShrink: 0,
-                        fontSize: medal ? 15 : 12,
+                        fontSize: medal ? 16 : 11,
                         color: medal ? medal.color : uc,
                         lineHeight: 1.4,
+                        paddingTop: medal ? 0 : 1,
                       }}
                     >
-                      {medal ? medal.label : `#${it.rank}`}
+                      {medal ? medal.label : (
+                        <span
+                          style={{
+                            display: "inline-block",
+                            background: `${uc}22`,
+                            border: `1px solid ${uc}55`,
+                            borderRadius: 5,
+                            padding: "2px 5px",
+                            fontSize: 10,
+                            color: uc,
+                          }}
+                        >
+                          #{it.rank}
+                        </span>
+                      )}
                     </div>
 
                     {/* content */}
@@ -260,7 +361,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                           color: C.text,
                           fontSize: 11.5,
                           fontWeight: 700,
-                          marginBottom: 2,
+                          marginBottom: 3,
                           lineHeight: 1.3,
                         }}
                       >
@@ -276,13 +377,22 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                       >
                         {it.reason}
                       </div>
-                      <div style={{ marginTop: 4, fontSize: 9.5, color: C.dimmer, fontFamily: mono, textTransform: "capitalize" as const }}>
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 9,
+                          color: HUD.dimmer,
+                          fontFamily: mono,
+                          textTransform: "uppercase" as const,
+                          letterSpacing: 0.8,
+                        }}
+                      >
                         {it.targetType.toLowerCase()}
                       </div>
                     </div>
 
                     {/* urgency pill */}
-                    <div style={{ flexShrink: 0 }}>
+                    <div style={{ flexShrink: 0, paddingTop: 1 }}>
                       <Pill color={uc}>{it.urgency}</Pill>
                     </div>
                   </div>
@@ -291,11 +401,12 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
               {health.remediation.length > 12 && (
                 <div
                   style={{
-                    color: C.dimmer,
-                    fontSize: 10,
+                    color: HUD.dimmer,
+                    fontSize: 9.5,
                     fontFamily: mono,
                     textAlign: "center",
-                    padding: "8px 0 4px",
+                    padding: "10px 0 4px",
+                    letterSpacing: 0.5,
                   }}
                 >
                   +{health.remediation.length - 12} more items
@@ -309,34 +420,65 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
   );
 }
 
-// ─── local helpers ──────────────────────────────────────────────────────────
+// ─── HUD section header ──────────────────────────────────────────────────────
 
-function SectionHeader({ label, sub }: { label: string; sub?: string }) {
+function HudSectionHeader({ label, sub }: { label: string; sub?: string }) {
   return (
-    <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
+    <div
+      style={{
+        marginBottom: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      {/* diamond tick */}
       <span
         style={{
-          color: C.dimmer,
+          color: HUD.cyan,
+          fontSize: 8,
+          lineHeight: 1,
+          opacity: 0.9,
+        }}
+      >
+        ▸
+      </span>
+      <span
+        style={{
+          color: HUD.cyan,
           fontSize: 9,
           fontFamily: mono,
           fontWeight: 700,
-          letterSpacing: 2,
+          letterSpacing: 2.5,
+          textTransform: "uppercase" as const,
         }}
       >
         {label}
       </span>
       {sub && (
-        <span
-          style={{
-            color: C.dimmer,
-            fontSize: 9,
-            fontFamily: mono,
-            opacity: 0.6,
-          }}
-        >
-          · {sub}
-        </span>
+        <>
+          <span style={{ color: HUD.line, fontSize: 9 }}>·</span>
+          <span
+            style={{
+              color: HUD.dimmer,
+              fontSize: 9,
+              fontFamily: mono,
+              opacity: 0.7,
+            }}
+          >
+            {sub}
+          </span>
+        </>
       )}
+      {/* rule line */}
+      <div
+        style={{
+          flex: 1,
+          height: 1,
+          background: `linear-gradient(90deg, ${HUD.line}, transparent)`,
+          marginLeft: 4,
+        }}
+      />
     </div>
   );
 }

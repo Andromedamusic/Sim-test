@@ -11,23 +11,30 @@
    - Minimap thumbnail (bottom-right)
    - Animated grid lines + SVG vignette
    - Improved empty state with oi-float / oi-pulse
-   - useReducedMotion respected throughout
    - Polygon / L-shaped room support:
        • Rooms render as <polygon> using roomPolygonWorld()
        • Outlet placement uses nearestEdge() + outletWorldPos()
        • RoomInspector: "Make L-shaped", vertex handles, "+ vertex", delete vertex, "Reset to rectangle"
+
+   HUD Upgrade:
+   - TACTICAL MAP framing with Brackets + holo scan-line
+   - Coordinate/scale HUD overlay on canvas
+   - Toolbar restyled as crisp HUD controls (mono, letter-spacing, cyan active states)
+   - Brighter holo grid major lines; faint vignette; room labels in mono
+   - Cinematic empty state
    ════════════════════════════════════════════════════════════════════════════ */
 import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useStore } from "../../state/store";
 import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta,
          outletWorldPos, nearestEdge, roomPolygonWorld, polygonBBox, type Vec2 } from "../../core";
-import { C, mono, VERDICT_COLOR, GRADE_COLOR } from "../theme";
+import { C, mono, HUD, VERDICT_COLOR, GRADE_COLOR, glow } from "../theme";
 import { useReducedMotion } from "../anim";
 import { Card, Field, NumberInput, TextInput, Select, TriToggle, Sheet, Row, Bar } from "../components";
 import { OutletMarker } from "../viz/floorplan/OutletMarker";
 import { CircuitTrace } from "../viz/floorplan/CircuitTrace";
 import { Minimap } from "../viz/floorplan/Minimap";
 import { PhotoCaptureButton, PhotoStrip } from "../components/photo";
+import { Bracket } from "../hud/Bracket";
 
 const PAD = 1.2; // metres of padding around content
 
@@ -106,6 +113,7 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   if (!model) return null;
   const floors = model.floors;
   const floorId = activeFloorId ?? floors[0]?.id ?? null;
+  const activeFloor = floors.find((f) => f.id === floorId);
   const rooms = model.rooms.filter((r) => r.floorId === floorId);
   const allOutlets = model.outlets;
   const outletsByRoom = (rid: string) => allOutlets.filter((o) => o.roomId === rid);
@@ -255,45 +263,86 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   // ── active room (for vertex handles) ─────────────────────────────────────
   const activeRoom = activeRoomId ? model.rooms.find((r) => r.id === activeRoomId) ?? null : null;
 
+  // ── HUD overlay info ──────────────────────────────────────────────────────
+  const floorLabel = activeFloor?.name ?? (floorId ? `Floor ${floors.findIndex((f) => f.id === floorId) + 1}` : "FLOOR 1");
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* ── floor + tools ── */}
-      <Card>
+      {/* ── HUD toolbar card ── */}
+      <div style={{
+        background: HUD.panel,
+        border: `1px solid ${HUD.line}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+        position: "relative",
+      }}>
+        <Bracket color={HUD.cyan} size={10} weight={1.5} opacity={0.6} />
+
+        {/* section label */}
+        <div style={{ fontFamily: mono, fontSize: 8, color: HUD.cyan, letterSpacing: 2, fontWeight: 700, marginBottom: 8, opacity: 0.75 }}>
+          TACTICAL MAP — CONTROLS
+        </div>
+
+        {/* floor chips + main tools */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
             {floors.map((f) => (
-              <button key={f.id} onClick={() => selectFloor(f.id)} style={chip(floorId === f.id)}>{f.name}</button>
+              <button key={f.id} onClick={() => selectFloor(f.id)}
+                className="oi-press"
+                style={hudChip(floorId === f.id)}>
+                {f.name}
+              </button>
             ))}
-            <button onClick={() => addFloor(`Floor ${floors.length + 1}`, floors.length + 1)} style={chip(false)}>+ Floor</button>
+            <button onClick={() => addFloor(`Floor ${floors.length + 1}`, floors.length + 1)}
+              className="oi-press"
+              style={hudChip(false)}>
+              + FLOOR
+            </button>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={() => floorId && addRoom(floorId, `Room ${rooms.length + 1}`)} style={tool(C.blue)}>+ Room</button>
-            <button onClick={() => setMode(mode === "addOutlet" ? "select" : "addOutlet")} style={tool(mode === "addOutlet" ? C.amber : C.dim, mode === "addOutlet")}>
-              {mode === "addOutlet" ? "● Tap a wall…" : "+ Outlet"}
+            <button
+              onClick={() => floorId && addRoom(floorId, `Room ${rooms.length + 1}`)}
+              className="oi-press"
+              style={hudTool(HUD.cyan)}>
+              + ROOM
             </button>
-            {/* Heatmap toggle */}
-            <button onClick={() => setHeatmap((h) => !h)} style={tool(heatmap ? GRADE_COLOR.AMBER : C.dim, heatmap)} title="Toggle room health heatmap">
-              {heatmap ? "◼ Health" : "◻ Health"}
+            <button
+              onClick={() => setMode(mode === "addOutlet" ? "select" : "addOutlet")}
+              className="oi-press"
+              style={hudTool(mode === "addOutlet" ? C.amber : HUD.dim, mode === "addOutlet")}>
+              {mode === "addOutlet" ? "● TAP WALL…" : "+ OUTLET"}
             </button>
-            <button onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })} style={tool(C.dim)}>⤢ Fit</button>
-            <button onClick={() => handleZoom(1.25)} style={tool(C.dim)}>＋</button>
-            <button onClick={() => handleZoom(0.8)} style={tool(C.dim)}>－</button>
+            <button
+              onClick={() => setHeatmap((h) => !h)}
+              className="oi-press"
+              style={hudTool(heatmap ? GRADE_COLOR.AMBER : HUD.dim, heatmap)}
+              title="Toggle room health heatmap">
+              {heatmap ? "◼ HEALTH" : "◻ HEALTH"}
+            </button>
+            <button onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })} className="oi-press" style={hudTool(HUD.dim)}>⤢ FIT</button>
+            <button onClick={() => handleZoom(1.25)} className="oi-press" style={hudTool(HUD.dim)}>＋</button>
+            <button onClick={() => handleZoom(0.8)} className="oi-press" style={hudTool(HUD.dim)}>－</button>
           </div>
         </div>
-        <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, marginTop: 8 }}>
-          {mode === "addOutlet" ? "Tap inside a room near a wall to drop an outlet." : "Tap a room to select · tap an outlet to measure it · drag to pan."}
+
+        {/* status hint */}
+        <div style={{ color: HUD.dimmer, fontSize: 9, fontFamily: mono, marginTop: 8, letterSpacing: 0.5 }}>
+          {mode === "addOutlet"
+            ? "▸ TAP INSIDE A ROOM NEAR A WALL TO DROP AN OUTLET"
+            : "▸ TAP ROOM TO SELECT · TAP OUTLET TO MEASURE · DRAG TO PAN"}
         </div>
 
         {/* ── Circuit selector row ── */}
         {floorCircuits.length > 0 && (
-          <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-            <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 6, letterSpacing: 1 }}>CIRCUIT FILTER</div>
+          <div style={{ marginTop: 10, borderTop: `1px solid ${HUD.line}`, paddingTop: 10 }}>
+            <div style={{ color: HUD.dimmer, fontSize: 8, fontFamily: mono, marginBottom: 6, letterSpacing: 2 }}>CIRCUIT FILTER</div>
             <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
               <button
                 onClick={() => setSelectedCircuitId("ALL")}
-                style={circuitChip("ALL", selectedCircuitId, C.blue)}
+                className="oi-press"
+                style={circuitChip("ALL", selectedCircuitId, HUD.cyan)}
               >
-                All
+                ALL
               </button>
               {floorCircuits.map((c) => {
                 const cOutlets = floorOutlets.filter((o) => o.circuitId === c.id);
@@ -302,10 +351,11 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
                   <button
                     key={c.id}
                     onClick={() => setSelectedCircuitId(selectedCircuitId === c.id ? "ALL" : c.id)}
+                    className="oi-press"
                     style={circuitChip(c.id, selectedCircuitId, col)}
                     title={`${c.ampRating}A · ${cOutlets.length} outlet${cOutlets.length !== 1 ? "s" : ""}`}
                   >
-                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: col, marginRight: 5, verticalAlign: "middle" }} />
+                    <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: col, marginRight: 5, verticalAlign: "middle", boxShadow: `0 0 5px ${col}` }} />
                     {c.breakerLabel}
                     {c.isSharedNeutral && <span style={{ marginLeft: 4, fontSize: 8, opacity: 0.7 }}>MWB</span>}
                   </button>
@@ -313,19 +363,79 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
               })}
             </div>
             {selectedCircuitId !== "ALL" && (
-              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10, fontSize: 10, fontFamily: mono, color: C.dim }}>
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10, fontSize: 9, fontFamily: mono, color: HUD.dim }}>
                 <svg width={28} height={8} style={{ display: "inline-block", verticalAlign: "middle" }}>
                   <line x1={0} y1={4} x2={28} y2={4} stroke={selectedCircuitColor} strokeWidth={2} strokeDasharray="4 3" className={reduced ? "" : "oi-flow"} />
                 </svg>
-                <span>Animated circuit run · {selectedCircuitOutlets.length} outlet{selectedCircuitOutlets.length !== 1 ? "s" : ""} on this floor</span>
+                <span>CIRCUIT RUN · {selectedCircuitOutlets.length} OUTLET{selectedCircuitOutlets.length !== 1 ? "S" : ""} ON FLOOR</span>
               </div>
             )}
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* ── canvas ── */}
-      <div style={{ position: "relative", background: "#0C0C10", border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", touchAction: "none" }}>
+      {/* ── TACTICAL MAP canvas ── */}
+      <div style={{
+        position: "relative",
+        background: "#07090E",
+        border: `1px solid ${HUD.lineHi}`,
+        borderRadius: 12,
+        overflow: "hidden",
+        touchAction: "none",
+      }}>
+        {/* Corner brackets on the canvas frame */}
+        <Bracket color={HUD.cyan} size={16} weight={1.5} opacity={0.7} />
+
+        {/* Holo top scan-line */}
+        <div style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0,
+          height: 1,
+          background: `linear-gradient(90deg, transparent, ${HUD.cyan}88, transparent)`,
+          zIndex: 4,
+          pointerEvents: "none",
+        }} />
+
+        {/* Canvas HUD overlay — coordinate / scale readout */}
+        <div style={{
+          position: "absolute",
+          top: 10, left: 14,
+          zIndex: 5,
+          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}>
+          <span style={{ fontFamily: mono, fontSize: 8, color: HUD.cyan, letterSpacing: 2, fontWeight: 700, opacity: 0.85 }}>
+            {floorLabel.toUpperCase()}
+          </span>
+          <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 1 }}>·</span>
+          <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dim, letterSpacing: 1 }}>
+            {floorOutlets.length} OUTLET{floorOutlets.length !== 1 ? "S" : ""}
+          </span>
+          <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 1 }}>·</span>
+          <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dim, letterSpacing: 1 }}>
+            {view.zoom.toFixed(2)}×
+          </span>
+        </div>
+
+        {/* Mode badge top-right */}
+        {mode === "addOutlet" && (
+          <div style={{
+            position: "absolute",
+            top: 10, right: 14,
+            zIndex: 5,
+            pointerEvents: "none",
+            fontFamily: mono,
+            fontSize: 8,
+            color: C.amber,
+            letterSpacing: 2,
+            fontWeight: 700,
+          }} className={reduced ? "" : "oi-pulse"}>
+            ● OUTLET PLACEMENT
+          </div>
+        )}
+
         <svg
           ref={svgRef}
           viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
@@ -341,13 +451,25 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
           <defs>
             {/* Radial vignette */}
             <radialGradient id="fp-vignette" cx="50%" cy="50%" r="70%">
-              <stop offset="60%" stopColor="#0C0C10" stopOpacity={0} />
-              <stop offset="100%" stopColor="#0C0C10" stopOpacity={0.55} />
+              <stop offset="55%" stopColor="#07090E" stopOpacity={0} />
+              <stop offset="100%" stopColor="#07090E" stopOpacity={0.68} />
             </radialGradient>
+            {/* Holo scan sweep */}
+            <linearGradient id="fp-scan" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={HUD.cyan} stopOpacity={0.06} />
+              <stop offset="100%" stopColor={HUD.cyan} stopOpacity={0} />
+            </linearGradient>
           </defs>
 
           {/* ── grid ── */}
           <GridLines bb={bb} reduced={reduced} />
+
+          {/* Faint holo tint on the whole canvas */}
+          <rect
+            x={vb.x} y={vb.y} width={vb.w} height={vb.h}
+            fill="url(#fp-scan)"
+            style={{ pointerEvents: "none" }}
+          />
 
           {/* ── circuit trace (behind rooms) ── */}
           {selectedCircuitId !== "ALL" && (
@@ -393,34 +515,48 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
           {/* ── empty state ── */}
           {rooms.length === 0 && (
             <g className={reduced ? "" : "oi-float"} style={{ transformOrigin: `${bb.x + bb.w / 2}px ${bb.y + bb.h / 2}px` }}>
+              {/* Crosshair reticle */}
+              <line x1={bb.x + bb.w / 2 - 0.6} y1={bb.y + bb.h / 2} x2={bb.x + bb.w / 2 + 0.6} y2={bb.y + bb.h / 2} stroke={HUD.cyan} strokeWidth={0.025} opacity={0.25} />
+              <line x1={bb.x + bb.w / 2} y1={bb.y + bb.h / 2 - 0.6} x2={bb.x + bb.w / 2} y2={bb.y + bb.h / 2 + 0.6} stroke={HUD.cyan} strokeWidth={0.025} opacity={0.25} />
+              <rect
+                x={bb.x + bb.w / 2 - 0.5} y={bb.y + bb.h / 2 - 0.5}
+                width={1} height={1}
+                fill="none"
+                stroke={HUD.cyan}
+                strokeWidth={0.03}
+                opacity={0.15}
+              />
               <text
                 x={bb.x + bb.w / 2}
-                y={bb.y + bb.h / 2 - 0.3}
-                fill={C.dim}
-                fontSize={0.55}
+                y={bb.y + bb.h / 2 - 0.22}
+                fill={HUD.cyan}
+                fontSize={0.5}
                 fontFamily={mono}
                 textAnchor="middle"
+                letterSpacing={0.04}
+                opacity={0.7}
               >
-                Tap "+ Room" to begin
+                NO FLOOR DATA
               </text>
               <text
                 x={bb.x + bb.w / 2}
-                y={bb.y + bb.h / 2 + 0.45}
-                fill={C.dimmer}
-                fontSize={0.38}
+                y={bb.y + bb.h / 2 + 0.38}
+                fill={HUD.dim}
+                fontSize={0.32}
                 fontFamily={mono}
                 textAnchor="middle"
+                letterSpacing={0.02}
               >
-                mapping this floor
+                tap + ROOM to begin mapping this floor
               </text>
               {/* Pulsing dot */}
               <circle
                 cx={bb.x + bb.w / 2}
-                cy={bb.y + bb.h / 2 + 1.2}
-                r={0.18}
-                fill={C.blue}
+                cy={bb.y + bb.h / 2 + 1.1}
+                r={0.15}
+                fill={HUD.cyan}
                 className={reduced ? "" : "oi-pulse"}
-                opacity={0.7}
+                opacity={0.6}
               />
             </g>
           )}
@@ -462,10 +598,10 @@ function VertexHandles({ room, onVertexPointerDown }: VertexHandlesProps) {
           cx={p.x}
           cy={p.y}
           r={handleR}
-          fill={C.blue}
-          stroke="#0C0C10"
+          fill={HUD.cyan}
+          stroke="#07090E"
           strokeWidth={0.04}
-          style={{ cursor: "move" }}
+          style={{ cursor: "move", filter: `drop-shadow(0 0 3px ${HUD.cyan}99)` }}
           onPointerDown={(e) => onVertexPointerDown(e, room.id, i)}
         />
       ))}
@@ -484,8 +620,8 @@ function GridLines({ bb, reduced }: { bb: { x: number; y: number; w: number; h: 
       <line
         key={`v${x}`}
         x1={x} y1={bb.y} x2={x} y2={bb.y + bb.h}
-        stroke={major ? "#1F1F26" : "#17171C"}
-        strokeWidth={major ? 0.03 : 0.018}
+        stroke={major ? `${HUD.cyan}28` : "#15181F"}
+        strokeWidth={major ? 0.035 : 0.018}
       />
     );
   }
@@ -495,8 +631,8 @@ function GridLines({ bb, reduced }: { bb: { x: number; y: number; w: number; h: 
       <line
         key={`h${y}`}
         x1={bb.x} y1={y} x2={bb.x + bb.w} y2={y}
-        stroke={major ? "#1F1F26" : "#17171C"}
-        strokeWidth={major ? 0.03 : 0.018}
+        stroke={major ? `${HUD.cyan}28` : "#15181F"}
+        strokeWidth={major ? 0.035 : 0.018}
       />
     );
   }
@@ -528,12 +664,25 @@ function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTap
       {/* Base room polygon */}
       <polygon
         points={pointsAttr}
-        fill={selected ? "#15202E" : "#121217"}
-        stroke={selected ? C.blue : "#3A3A44"}
-        strokeWidth={selected ? 0.06 : 0.035}
+        fill={selected ? "#0D1A2A" : "#0C0F16"}
+        stroke={selected ? HUD.cyan : HUD.line}
+        strokeWidth={selected ? 0.06 : 0.03}
         strokeLinejoin="round"
-        style={{ transition: "fill 0.35s, stroke 0.25s" }}
+        style={{ transition: "fill 0.35s, stroke 0.25s", filter: selected ? `drop-shadow(0 0 4px ${HUD.cyan}55)` : undefined }}
       />
+
+      {/* Selection inner highlight */}
+      {selected && (
+        <polygon
+          points={pointsAttr}
+          fill="none"
+          stroke={HUD.cyan}
+          strokeWidth={0.025}
+          strokeLinejoin="round"
+          opacity={0.25}
+          style={{ pointerEvents: "none" }}
+        />
+      )}
 
       {/* Heatmap tint overlay */}
       {heatFill && (
@@ -544,14 +693,16 @@ function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTap
         />
       )}
 
-      <text x={minX + 0.18} y={minY + 0.55} fill={C.dim} fontSize={0.42} fontFamily={mono}>{room.name}</text>
+      {/* Room label in mono */}
+      <text x={minX + 0.18} y={minY + 0.52} fill={selected ? HUD.cyan : HUD.dim} fontSize={0.38} fontFamily={mono} letterSpacing={0.02} style={{ transition: "fill 0.25s" }}>{room.name.toUpperCase()}</text>
       <text
         x={maxX - 0.18}
-        y={maxY - 0.22}
-        fill="#3A3A44"
-        fontSize={0.3}
+        y={maxY - 0.2}
+        fill={HUD.dimmer}
+        fontSize={0.27}
         fontFamily={mono}
         textAnchor="end"
+        letterSpacing={0.01}
       >
         {room.width_m.toFixed(1)}×{room.depth_m.toFixed(1)}m
       </text>
@@ -597,8 +748,6 @@ function RoomInspector({ roomId }: { roomId: string }) {
   // ── polygon actions ─────────────────────────────────────────────────────
   const makeLShaped = () => {
     const w = room.width_m, d = room.depth_m;
-    // Cut the NE quadrant (top-right) to form an L:
-    // Full rect minus top-right corner of 50% × 50%
     const poly: Vec2[] = [
       { x: 0,       y: 0 },
       { x: w * 0.5, y: 0 },
@@ -617,7 +766,6 @@ function RoomInspector({ roomId }: { roomId: string }) {
 
   const addVertex = () => {
     if (!room.polygon || room.polygon.length < 3) return;
-    // Find the longest edge, insert midpoint
     const poly = room.polygon;
     let bestLen = -1, bestIdx = 0;
     for (let i = 0; i < poly.length; i++) {
@@ -633,7 +781,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
   };
 
   const deleteVertex = (idx: number) => {
-    if (!room.polygon || room.polygon.length <= 3) return; // min 3
+    if (!room.polygon || room.polygon.length <= 3) return;
     const newPoly = room.polygon.filter((_, i) => i !== idx);
     const bbox = polygonBBox(newPoly);
     updateRoom({ ...room, polygon: newPoly, width_m: Math.max(0.5, bbox.width_m), depth_m: Math.max(0.5, bbox.depth_m) });
@@ -642,7 +790,19 @@ function RoomInspector({ roomId }: { roomId: string }) {
   const isPolygon = !!(room.polygon && room.polygon.length >= 3);
 
   return (
-    <Card title="ROOM">
+    <div style={{
+      background: HUD.panel,
+      border: `1px solid ${HUD.lineHi}`,
+      borderRadius: 10,
+      padding: "12px 14px",
+      position: "relative",
+    }} className="oi-fadeup">
+      <Bracket color={HUD.cyan} size={8} weight={1.5} opacity={0.5} />
+
+      <div style={{ fontFamily: mono, fontSize: 8, color: HUD.cyan, letterSpacing: 2, fontWeight: 700, marginBottom: 10, opacity: 0.8 }}>
+        ROOM — {room.name.toUpperCase()}
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8 }}>
         <Field label="Name"><TextInput value={room.name} onChange={(v) => set({ name: v })} /></Field>
         <Field label="Width (m)"><NumberInput value={room.width_m} onChange={(v) => set({ width_m: Math.max(1, parseFloat(v) || 1) })} /></Field>
@@ -652,32 +812,20 @@ function RoomInspector({ roomId }: { roomId: string }) {
       </div>
 
       {/* ── polygon shape controls ── */}
-      <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-        <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 8, letterSpacing: 1 }}>SHAPE</div>
+      <div style={{ marginTop: 10, borderTop: `1px solid ${HUD.line}`, paddingTop: 10 }}>
+        <div style={{ color: HUD.dimmer, fontSize: 8, fontFamily: mono, marginBottom: 8, letterSpacing: 2 }}>SHAPE</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {!isPolygon ? (
-            <button
-              onClick={makeLShaped}
-              style={shapeBtn(C.blue)}
-              title="Convert to L-shaped room (cut NE quadrant)"
-            >
-              Make L-shaped
+            <button onClick={makeLShaped} className="oi-press" style={shapeBtn(HUD.cyan)} title="Convert to L-shaped room (cut NE quadrant)">
+              MAKE L-SHAPED
             </button>
           ) : (
             <>
-              <button
-                onClick={resetToRect}
-                style={shapeBtn(C.dim)}
-                title="Reset to bounding-box rectangle"
-              >
-                Reset to rectangle
+              <button onClick={resetToRect} className="oi-press" style={shapeBtn(HUD.dim)} title="Reset to bounding-box rectangle">
+                RESET TO RECT
               </button>
-              <button
-                onClick={addVertex}
-                style={shapeBtn(C.blue)}
-                title="Insert a vertex at the midpoint of the longest edge"
-              >
-                + Vertex
+              <button onClick={addVertex} className="oi-press" style={shapeBtn(HUD.cyan)} title="Insert a vertex at the midpoint of the longest edge">
+                + VERTEX
               </button>
             </>
           )}
@@ -686,17 +834,18 @@ function RoomInspector({ roomId }: { roomId: string }) {
         {/* Vertex list with delete buttons */}
         {isPolygon && room.polygon && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 4 }}>
+            <div style={{ color: HUD.dimmer, fontSize: 8, fontFamily: mono, marginBottom: 4, letterSpacing: 1 }}>
               VERTICES ({room.polygon.length}) — drag handles on canvas to reposition
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 140, overflowY: "auto" }}>
               {room.polygon.map((v, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontFamily: mono, color: C.dim }}>
-                  <span style={{ minWidth: 20, color: C.dimmer }}>{i}</span>
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontFamily: mono, color: HUD.dim }}>
+                  <span style={{ minWidth: 20, color: HUD.dimmer, fontSize: 9 }}>{i}</span>
                   <span>{v.x.toFixed(2)}, {v.y.toFixed(2)} m</span>
                   {room.polygon!.length > 3 && (
                     <button
                       onClick={() => deleteVertex(i)}
+                      className="oi-press"
                       style={{ marginLeft: "auto", background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 5, padding: "2px 7px", fontSize: 10, fontFamily: mono, cursor: "pointer" }}
                       title="Delete this vertex"
                     >
@@ -711,14 +860,14 @@ function RoomInspector({ roomId }: { roomId: string }) {
       </div>
 
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={addOutletHere} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
-          + Add outlet
+        <button onClick={addOutletHere} className="oi-press" style={{ background: "transparent", color: HUD.cyan, border: `1px solid ${HUD.cyan}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>
+          + OUTLET
         </button>
-        <button onClick={() => removeRoom(room.id)} style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
-          Delete room
+        <button onClick={() => removeRoom(room.id)} className="oi-press" style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
+          DELETE ROOM
         </button>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -795,9 +944,9 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={run} style={{ background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 800, fontFamily: mono, fontSize: 13, flex: 1 }}>✓ Save diagnosis</button>
-          <button onClick={() => { useStore.getState().setScratchObs(obs); useStore.getState().setScratchMeta(meta); onOpenDiagnose(); }} style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Full analysis →</button>
-          <button onClick={() => { removeOutlet(outletId); onClose(); }} style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Delete</button>
+          <button onClick={run} className="oi-press" style={{ background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 800, fontFamily: mono, fontSize: 13, flex: 1 }}>✓ Save diagnosis</button>
+          <button onClick={() => { useStore.getState().setScratchObs(obs); useStore.getState().setScratchMeta(meta); onOpenDiagnose(); }} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Full analysis →</button>
+          <button onClick={() => { removeOutlet(outletId); onClose(); }} className="oi-press" style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Delete</button>
         </div>
       </div>
     </Sheet>
@@ -805,55 +954,67 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
 }
 
 // ── small style helpers ──────────────────────────────────────────────────────
-const chip = (active: boolean): React.CSSProperties => ({
-  padding: "6px 11px",
-  borderRadius: 7,
+const hudChip = (active: boolean): React.CSSProperties => ({
+  padding: "5px 10px",
+  borderRadius: 5,
   whiteSpace: "nowrap",
-  border: `1px solid ${active ? C.blue : C.border}`,
-  background: active ? "#1E293B" : "#0E0E12",
-  color: active ? C.text : C.dim,
-  fontSize: 11,
-  fontFamily: mono,
-});
-
-const tool = (color: string, active = false): React.CSSProperties => ({
-  padding: "7px 11px",
-  borderRadius: 7,
-  border: `1px solid ${color}`,
-  background: active ? color + "22" : "transparent",
-  color,
-  fontSize: 11,
+  border: `1px solid ${active ? HUD.cyan : HUD.line}`,
+  background: active ? `${HUD.cyan}18` : "transparent",
+  color: active ? HUD.cyan : HUD.dim,
+  fontSize: 9,
   fontFamily: mono,
   fontWeight: 700,
+  letterSpacing: 1,
+  cursor: "pointer",
+  transition: "background 0.2s, border-color 0.2s, color 0.2s",
+  boxShadow: active ? `0 0 8px ${HUD.cyan}33` : undefined,
+});
+
+const hudTool = (color: string, active = false): React.CSSProperties => ({
+  padding: "5px 10px",
+  borderRadius: 5,
+  border: `1px solid ${active ? color : `${color}66`}`,
+  background: active ? `${color}18` : "transparent",
+  color: active ? color : `${color}CC`,
+  fontSize: 9,
+  fontFamily: mono,
+  fontWeight: 700,
+  letterSpacing: 1,
   whiteSpace: "nowrap",
   cursor: "pointer",
+  transition: "background 0.15s, border-color 0.15s, color 0.15s",
+  boxShadow: active ? `0 0 8px ${color}33` : undefined,
 });
 
 function circuitChip(id: string, selected: string, color: string): React.CSSProperties {
   const active = id === selected;
   return {
-    padding: "5px 10px",
-    borderRadius: 999,
+    padding: "4px 10px",
+    borderRadius: 4,
     whiteSpace: "nowrap",
-    border: `1px solid ${active ? color : C.border}`,
-    background: active ? color + "22" : "#0E0E12",
-    color: active ? color : C.dim,
-    fontSize: 10,
+    border: `1px solid ${active ? color : HUD.line}`,
+    background: active ? `${color}20` : "transparent",
+    color: active ? color : HUD.dim,
+    fontSize: 9,
     fontFamily: mono,
     fontWeight: active ? 800 : 400,
+    letterSpacing: active ? 1 : 0.5,
     cursor: "pointer",
     transition: "background 0.2s, border-color 0.2s, color 0.2s",
+    boxShadow: active ? `0 0 8px ${color}44` : undefined,
   };
 }
 
 const shapeBtn = (color: string): React.CSSProperties => ({
   background: "transparent",
   color,
-  border: `1px solid ${color}`,
-  borderRadius: 7,
-  padding: "6px 11px",
-  fontSize: 11,
+  border: `1px solid ${color}88`,
+  borderRadius: 5,
+  padding: "5px 10px",
+  fontSize: 9,
   fontFamily: mono,
   fontWeight: 700,
+  letterSpacing: 1,
   cursor: "pointer",
+  transition: "border-color 0.15s, color 0.15s",
 });

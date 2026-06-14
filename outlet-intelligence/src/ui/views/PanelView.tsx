@@ -10,7 +10,7 @@
    - Circuit detail + tracer restyled as HUD panels
    - Two-column real panel layout with column separators
    ════════════════════════════════════════════════════════════════════════════ */
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store";
 import { rollupHome } from "../../core";
 import type { CircuitNode } from "../../core";
@@ -40,11 +40,18 @@ interface BreakerTileProps {
   onUpdate: (c: CircuitNode) => void;
 }
 
+// Long-press threshold in ms
+const LONG_PRESS_MS = 500;
+
 function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumber, reduced, onSelect, onUpdate }: BreakerTileProps) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [editingAmp, setEditingAmp] = useState(false);
   const [labelDraft, setLabelDraft] = useState(circuit.breakerLabel);
   const [ampDraft, setAmpDraft] = useState(String(circuit.ampRating));
+
+  // Long-press timer refs
+  const labelLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ampLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const gradeColor = GRADE_COLOR[grade] ?? HUD.dim;
 
@@ -62,6 +69,18 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
       onUpdate({ ...circuit, ampRating: clampAmp(n) });
     }
     setEditingAmp(false);
+  }
+
+  function startLabelEdit(e: React.SyntheticEvent) {
+    e.stopPropagation();
+    setLabelDraft(circuit.breakerLabel);
+    setEditingLabel(true);
+  }
+
+  function startAmpEdit(e: React.SyntheticEvent) {
+    e.stopPropagation();
+    setAmpDraft(String(circuit.ampRating));
+    setEditingAmp(true);
   }
 
   const displaySlot = circuit.breakerSlot != null ? circuit.breakerSlot : slotNumber;
@@ -140,18 +159,40 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
           }}
         />
       ) : (
-        <div
-          onDoubleClick={(e) => { e.stopPropagation(); setLabelDraft(circuit.breakerLabel); setEditingLabel(true); }}
-          title="Double-click to edit label"
-          style={{
-            fontFamily: mono, fontSize: 11, fontWeight: 700,
-            color: selected ? HUD.text : HUD.dim,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            letterSpacing: 0.2,
-            transition: "color 0.2s",
-          }}
-        >
-          {circuit.breakerLabel}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+          <div
+            onDoubleClick={startLabelEdit}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              labelLongPressTimer.current = setTimeout(() => startLabelEdit(e), LONG_PRESS_MS);
+            }}
+            onPointerUp={() => { if (labelLongPressTimer.current) { clearTimeout(labelLongPressTimer.current); labelLongPressTimer.current = null; } }}
+            onPointerLeave={() => { if (labelLongPressTimer.current) { clearTimeout(labelLongPressTimer.current); labelLongPressTimer.current = null; } }}
+            title="Double-click or long-press to edit label"
+            style={{
+              fontFamily: mono, fontSize: 11, fontWeight: 700,
+              color: selected ? HUD.text : HUD.dim,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              letterSpacing: 0.2,
+              transition: "color 0.2s",
+              userSelect: "none",
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {circuit.breakerLabel}
+          </div>
+          {/* Pencil affordance — single tap to edit */}
+          <button
+            onClick={startLabelEdit}
+            title="Edit label"
+            style={{
+              background: "none", border: "none", padding: "2px 3px", cursor: "pointer",
+              color: HUD.dimmer, fontSize: 10, lineHeight: 1, flexShrink: 0,
+              opacity: 0.6,
+            }}
+            aria-label="Edit circuit label"
+          >✎</button>
         </div>
       )}
 
@@ -174,16 +215,22 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
           />
         ) : (
           <span
-            onDoubleClick={(e) => { e.stopPropagation(); setAmpDraft(String(circuit.ampRating)); setEditingAmp(true); }}
-            title="Double-click to edit amperage"
-            style={{ fontFamily: mono, fontSize: 9, color: selected ? gradeColor : HUD.dimmer, fontWeight: 700, letterSpacing: 0.5 }}
+            onDoubleClick={startAmpEdit}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              ampLongPressTimer.current = setTimeout(() => startAmpEdit(e), LONG_PRESS_MS);
+            }}
+            onPointerUp={() => { if (ampLongPressTimer.current) { clearTimeout(ampLongPressTimer.current); ampLongPressTimer.current = null; } }}
+            onPointerLeave={() => { if (ampLongPressTimer.current) { clearTimeout(ampLongPressTimer.current); ampLongPressTimer.current = null; } }}
+            title="Double-click or long-press to edit amperage"
+            style={{ fontFamily: mono, fontSize: 10, color: selected ? gradeColor : HUD.dimmer, fontWeight: 700, letterSpacing: 0.5, userSelect: "none", cursor: "pointer" }}
           >
-            {circuit.ampRating}A
+            {circuit.ampRating}A✎
           </span>
         )}
-        <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 0.5 }}>{circuit.voltage}V</span>
+        <span style={{ fontFamily: mono, fontSize: 10, color: HUD.dimmer, letterSpacing: 0.5 }}>{circuit.voltage}V</span>
         {circuit.isSharedNeutral && (
-          <span style={{ fontFamily: mono, fontSize: 7, color: C.warn, background: `${C.warn}1A`, padding: "1px 4px", borderRadius: 3, letterSpacing: 0.5 }}>
+          <span style={{ fontFamily: mono, fontSize: 10, color: C.warn, background: `${C.warn}1A`, padding: "1px 4px", borderRadius: 3, letterSpacing: 0.5 }}>
             MWBC
           </span>
         )}
@@ -546,9 +593,9 @@ export function PanelView() {
 
           {/* Column headers */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 4px 1fr", gap: "0 8px", marginBottom: 8 }}>
-            <div style={{ fontFamily: mono, fontSize: 7, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE A</div>
+            <div style={{ fontFamily: mono, fontSize: 10, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE A</div>
             <div />
-            <div style={{ fontFamily: mono, fontSize: 7, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE B</div>
+            <div style={{ fontFamily: mono, fontSize: 10, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE B</div>
           </div>
 
           {/* Two-column breaker grid with bus bar divider */}

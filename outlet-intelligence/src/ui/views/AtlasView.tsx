@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { FAULTS, FK, PHYSICS } from "../../core";
 import type { Fault } from "../../core";
-import { C, HUD, mono, glow } from "../theme";
-import { Card, SubH, Row, Tag } from "../components";
+import { C, HUD, mono, sans, glow } from "../theme";
+import { Card, SectionHeader, SubH, Row, Tag } from "../components";
 import { RadialGauge, Sparkline, useReducedMotion } from "../anim";
 import { Bracket } from "../hud/Bracket";
 
@@ -23,34 +23,6 @@ function fmtGcont(v: number): string {
 function fmtReading(key: keyof Fault["sig"], mean: number): string {
   if (key === "Gcont") return fmtGcont(mean);
   return mean.toFixed(1);
-}
-
-/** HUD section header: cyan diamond tick + letter-spaced mono label. */
-function HudLabel({ text }: { text: string }) {
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 7,
-      margin: "12px 0 6px",
-      color: HUD.cyan,
-      fontSize: 9,
-      fontFamily: mono,
-      fontWeight: 800,
-      letterSpacing: 2,
-    }}>
-      <span style={{
-        width: 6,
-        height: 6,
-        background: HUD.cyan,
-        boxShadow: glow(HUD.cyan, 0.7),
-        transform: "rotate(45deg)",
-        flexShrink: 0,
-        display: "inline-block",
-      }} />
-      {text}
-    </div>
-  );
 }
 
 /** Sig sparkline redrawn from the three voltage keys. */
@@ -79,7 +51,7 @@ export function AtlasView() {
 
       {/* ── Left: fault roster ── */}
       <div style={{
-        minWidth: 240,
+        minWidth: "min(240px,100%)",
         flex: "1 1 240px",
         background: HUD.panel,
         border: `1px solid ${HUD.line}`,
@@ -105,12 +77,12 @@ export function AtlasView() {
             transform: "rotate(45deg)",
             flexShrink: 0,
           }} />
-          <span style={{ color: HUD.cyan, fontSize: 9, fontFamily: mono, fontWeight: 800, letterSpacing: 2, flex: 1 }}>
+          <span style={{ color: HUD.cyan, fontSize: 10, fontFamily: mono, fontWeight: 800, letterSpacing: 1.5, flex: 1 }}>
             FAULT LIBRARY
           </span>
           <span style={{
             color: HUD.dim,
-            fontSize: 9,
+            fontSize: 10,
             fontFamily: mono,
             background: HUD.glass,
             border: `1px solid ${HUD.lineHi}`,
@@ -202,7 +174,7 @@ export function AtlasView() {
       <div
         key={selected}
         className={reduced ? "" : "oi-popin"}
-        style={{ minWidth: 300, flex: "2 1 300px" }}
+        style={{ minWidth: "min(300px,100%)", flex: "2 1 300px" }}
       >
         <Card title={`FAULT DOSSIER — ${f.id.toUpperCase()}`}>
           {/* Hero: name + severity gauge, bracketed */}
@@ -247,7 +219,7 @@ export function AtlasView() {
           </div>
 
           {/* Voltage-signature sparkline across the full width */}
-          <HudLabel text="VOLTAGE FINGERPRINT" />
+          <SectionHeader label="VOLTAGE FINGERPRINT" style={{ margin: "12px 0 6px" }} />
           <div style={{
             padding: "8px 0 4px",
             display: "flex",
@@ -271,19 +243,19 @@ export function AtlasView() {
                   <span style={{ color, fontSize: 12, fontFamily: mono, fontWeight: 700 }}>
                     {val.toFixed(0)}
                   </span>
-                  <span style={{ color: HUD.dimmer, fontSize: 8, fontFamily: mono }}>{label}</span>
+                  <span style={{ color: HUD.dim, fontSize: 10, fontFamily: mono }}>{label}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Discriminator + Remedy */}
-          <HudLabel text="DISCRIMINATOR &amp; REMEDY" />
+          <SectionHeader label="DISCRIMINATOR & REMEDY" style={{ margin: "12px 0 6px" }} />
           <Row label="Discriminator" val={f.discriminator} />
           <Row label="Remedy" val={f.remedy} />
 
           {/* Signature table */}
-          <HudLabel text="SIGNATURE TABLE" />
+          <SectionHeader label="SIGNATURE TABLE" style={{ margin: "12px 0 6px" }} />
           <div style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
@@ -292,7 +264,7 @@ export function AtlasView() {
             borderBottom: `1px solid ${HUD.line}`,
           }}>
             {["Reading", "Expected", "±σ"].map((h) => (
-              <span key={h} style={{ color: HUD.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>
+              <span key={h} style={{ color: HUD.dim, fontSize: 10, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>
                 {h}
               </span>
             ))}
@@ -317,7 +289,7 @@ export function AtlasView() {
               >
                 <span style={{ color: HUD.dim, fontSize: 10, fontFamily: mono }}>{label}</span>
                 <span style={{ color: HUD.text, fontSize: 11, fontFamily: mono, fontWeight: 600 }}>{expectedStr}</span>
-                <span style={{ color: HUD.dimmer, fontSize: 10, fontFamily: mono }}>{sigmaStr}</span>
+                <span style={{ color: HUD.dim, fontSize: 10, fontFamily: mono }}>{sigmaStr}</span>
               </div>
             );
           })}

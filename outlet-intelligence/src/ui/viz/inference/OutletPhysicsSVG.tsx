@@ -114,7 +114,9 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
 
   const ghostOp    = useGhostOpacity(ghostVoltage, reduced);
   const frittingVal = useFrittingValue(fritting, reduced);
-  const scanY       = useScanY(!reduced);
+  // Scan-line only animates when a fault is actually shown (not on every idle load)
+  const hasFault   = fritting || ghostVoltage || reversed || openGnd;
+  const scanY       = useScanY(!reduced && hasFault);
 
   const hotColor     = reversed ? NEU_COLOR  : HOT_COLOR;
   const neuColor     = reversed ? HOT_COLOR  : NEU_COLOR;
@@ -149,8 +151,8 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
       {/* Corner brackets */}
       <Bracket color={HUD.cyan} size={12} inset={4} weight={1.5} opacity={0.7} />
 
-      {/* Live-scan stripe (horizontal sweep) */}
-      {!reduced && (
+      {/* Live-scan stripe — only when a fault is actively shown */}
+      {!reduced && hasFault && (
         <div
           style={{
             position: "absolute",
@@ -167,10 +169,10 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
 
       {/* Section label */}
       <div style={{
-        color: C.dimmer,
-        fontSize: 8.5,
+        color: C.dim,
+        fontSize: 10,
         fontFamily: mono,
-        letterSpacing: 2,
+        letterSpacing: 1.5,
         fontWeight: 700,
         alignSelf: "flex-start",
         display: "flex",
@@ -179,15 +181,15 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
       }}>
         <span style={{ color: HUD.cyan, fontSize: 7 }}>◆</span>
         SENSOR FEED · RECEPTACLE
-        {/* Live indicator dot */}
+        {/* Live indicator dot — always show, but only pulse when a fault is present */}
         <span style={{
           width: 5,
           height: 5,
           borderRadius: "50%",
-          background: C.good,
+          background: hasFault ? C.warn : C.good,
           display: "inline-block",
           marginLeft: 4,
-          boxShadow: `0 0 5px ${C.good}`,
+          boxShadow: `0 0 5px ${hasFault ? C.warn : C.good}`,
           animation: reduced ? "none" : "oi-pulse 2s ease-in-out infinite",
         }} />
       </div>

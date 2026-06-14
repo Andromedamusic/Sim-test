@@ -6,7 +6,6 @@
 import React from "react";
 import { AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
 import { C, HUD, mono } from "../../theme";
-import { Bracket } from "../../hud/Bracket";
 import { FAULTS, topN } from "../../../core";
 import type { analyzeOutlet } from "../../../core";
 
@@ -42,7 +41,7 @@ export function PosteriorRace({ post, topFault }: { post: Result["post"]; topFau
           return (
             <div
               key={id}
-              className={isLethal && !reduced ? "oi-pulse" : undefined}
+              className={isLethal && !reduced && i === 0 ? "oi-pulse" : undefined}
               style={{ position: "relative" }}
             >
               {/* Label + percent row */}
@@ -122,12 +121,6 @@ export function PosteriorRace({ post, topFault }: { post: Result["post"]; topFau
                 }} />
               </div>
 
-              {/* MAP gets Bracket overlay */}
-              {isMap && (
-                <div style={{ position: "relative", marginTop: 2 }}>
-                  <Bracket color={f.color} size={8} inset={0} weight={1} opacity={0.65} />
-                </div>
-              )}
             </div>
           );
         })}

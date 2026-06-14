@@ -23,7 +23,7 @@
    - Brighter holo grid major lines; faint vignette; room labels in mono
    - Cinematic empty state
    ════════════════════════════════════════════════════════════════════════════ */
-import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useStore } from "../../state/store";
 import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta,
          outletWorldPos, nearestEdge, roomPolygonWorld, polygonBBox, type Vec2 } from "../../core";
@@ -541,6 +541,8 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
             <VertexHandles
               room={activeRoom}
               onVertexPointerDown={onVertexPointerDown}
+              svgEl={svgRef.current}
+              vbW={vb.w}
             />
           )}
 
@@ -622,27 +624,47 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
 interface VertexHandlesProps {
   room: RoomNode;
   onVertexPointerDown: (e: React.PointerEvent, roomId: string, idx: number) => void;
+  /** SVG element ref — used to compute screen-space handle size. */
+  svgEl: SVGSVGElement | null;
+  /** Current viewBox — used to compute px-per-metre scale. */
+  vbW: number;
 }
 
-function VertexHandles({ room, onVertexPointerDown }: VertexHandlesProps) {
+function VertexHandles({ room, onVertexPointerDown, svgEl, vbW }: VertexHandlesProps) {
   if (!room.polygon || room.polygon.length < 3) return null;
   const worldPts = roomPolygonWorld(room);
-  const handleR = 0.14; // radius in world metres
+
+  // Keep handles ≈44 px diameter regardless of zoom
+  const clientW = svgEl?.clientWidth ?? 320;
+  const pxPerM = clientW / (vbW || 1);
+  const rWorld = 22 / pxPerM; // 22px radius → world metres
+  const hitR = Math.max(rWorld, 0.12); // never smaller than a sensible minimum
+  const visR = Math.max(rWorld * 0.7, 0.09); // visible circle slightly smaller
 
   return (
     <g style={{ pointerEvents: "all" }}>
       {worldPts.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x}
-          cy={p.y}
-          r={handleR}
-          fill={HUD.cyan}
-          stroke="#07090E"
-          strokeWidth={0.04}
-          style={{ cursor: "move", filter: `drop-shadow(0 0 3px ${HUD.cyan}99)` }}
-          onPointerDown={(e) => onVertexPointerDown(e, room.id, i)}
-        />
+        <g key={i} onPointerDown={(e) => onVertexPointerDown(e, room.id, i)}>
+          {/* Transparent hit area — full 44 px touch target */}
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r={hitR}
+            fill="transparent"
+            stroke="none"
+            style={{ cursor: "move" }}
+          />
+          {/* Visible handle */}
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r={visR}
+            fill={HUD.cyan}
+            stroke="#07090E"
+            strokeWidth={Math.max(0.02, visR * 0.22)}
+            style={{ cursor: "move", filter: `drop-shadow(0 0 3px ${HUD.cyan}99)`, pointerEvents: "none" }}
+          />
+        </g>
       ))}
     </g>
   );
@@ -954,7 +976,7 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
           </Field>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))", gap: 8 }}>
           <Field label="V H→N"><NumberInput value={obs.VHN} onChange={(v) => so("VHN", v)} /></Field>
           <Field label="V H→G"><NumberInput value={obs.VHG} onChange={(v) => so("VHG", v)} /></Field>
           <Field label="V N→G"><NumberInput value={obs.VNG} onChange={(v) => so("VNG", v)} /></Field>
@@ -984,7 +1006,7 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
           {preview.hold && preview.demand[0] && <div style={{ color: "#FECACA", fontSize: 10, fontFamily: mono, marginTop: 4 }}>▸ {preview.demand[0]}</div>}
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ position: "sticky", bottom: 0, background: C.panel, paddingTop: 8, zIndex: 1, display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={run} className="oi-press" style={{ background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 800, fontFamily: mono, fontSize: 13, flex: 1 }}>✓ Save diagnosis</button>
           <button onClick={() => { useStore.getState().setScratchObs(obs); useStore.getState().setScratchMeta(meta); onOpenDiagnose(); }} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Full analysis →</button>
           <button onClick={() => { removeOutlet(outletId); onClose(); }} className="oi-press" style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Delete</button>
@@ -996,7 +1018,7 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
 
 // ── small style helpers ──────────────────────────────────────────────────────
 const hudChip = (active: boolean): React.CSSProperties => ({
-  padding: "5px 10px",
+  padding: "9px 12px",
   borderRadius: 5,
   whiteSpace: "nowrap",
   border: `1px solid ${active ? HUD.cyan : HUD.line}`,
@@ -1012,7 +1034,7 @@ const hudChip = (active: boolean): React.CSSProperties => ({
 });
 
 const hudTool = (color: string, active = false): React.CSSProperties => ({
-  padding: "5px 10px",
+  padding: "9px 12px",
   borderRadius: 5,
   border: `1px solid ${active ? color : `${color}66`}`,
   background: active ? `${color}18` : "transparent",

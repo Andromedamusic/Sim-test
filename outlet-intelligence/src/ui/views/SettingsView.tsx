@@ -8,8 +8,8 @@ import { useStore } from "../../state/store";
 import { type Era, type WireMaterial } from "../../core";
 import { exportHome, downloadJSON, getSetting, setSetting, putHome } from "../../data/storage";
 import { storageEstimate, requestPersistence } from "../../data/db";
-import { C, mono, HUD, glow } from "../theme";
-import { Card, Field, TextInput, Select, SubH } from "../components";
+import { C, mono, sans, HUD, glow } from "../theme";
+import { Card, Field, TextInput, Select, SubH, SectionHeader, HudPanel } from "../components";
 import { METER_NAMES, METERS } from "../meters";
 import { AdapterPanel } from "../components/AdapterPanel";
 import { useReducedMotion } from "../anim";
@@ -35,41 +35,6 @@ function relTime(iso: string): string {
   }
 }
 
-// ─── HUD section header ───────────────────────────────────────────────────────
-
-function HudSectionLabel({ label }: { label: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-      <span style={{ color: HUD.cyan, fontSize: 8, lineHeight: 1 }}>◆</span>
-      <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.cyan, textTransform: "uppercase" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-// ─── HUD config panel wrapper ─────────────────────────────────────────────────
-
-function HudPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
-  const rm = useReducedMotion();
-  return (
-    <div
-      className={rm ? undefined : "oi-fadeup"}
-      style={{
-        position: "relative",
-        background: HUD.panel,
-        border: `1px solid ${HUD.line}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        ...style,
-      }}
-    >
-      <Bracket color={HUD.cyan} size={9} inset={3} weight={1} opacity={0.5} />
-      {children}
-    </div>
-  );
-}
-
 // ─── Styled input helpers ─────────────────────────────────────────────────────
 
 const inputBase: React.CSSProperties = {
@@ -85,26 +50,6 @@ const inputBase: React.CSSProperties = {
   transition: "border-color .15s, box-shadow .15s",
   outline: "none",
 };
-
-function FocusInput(props: React.InputHTMLAttributes<HTMLInputElement> & { value: string; onValueChange: (v: string) => void }) {
-  const { onValueChange, ...rest } = props;
-  const [focused, setFocused] = useState(false);
-  return (
-    <input
-      {...rest}
-      value={props.value}
-      onChange={(e) => onValueChange(e.target.value)}
-      onFocus={() => setFocused(true)}
-      onBlur={(e) => { setFocused(false); rest.onBlur?.(e); }}
-      style={{
-        ...inputBase,
-        borderColor: focused ? HUD.cyan : HUD.line,
-        boxShadow: focused ? glow(HUD.cyan, 0.3) : undefined,
-        ...props.style,
-      }}
-    />
-  );
-}
 
 // ─── Status chip ──────────────────────────────────────────────────────────────
 
@@ -126,6 +71,19 @@ function StatusChip({ color, children }: { color: string; children: React.ReactN
       {children}
     </span>
   );
+}
+
+// ─── SpinnerInline — reduced-motion gated ────────────────────────────────────
+
+function SpinnerInline() {
+  const rm = useReducedMotion();
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (rm) return;
+    const id = setInterval(() => setFrame((f) => (f + 1) % 4), 200);
+    return () => clearInterval(id);
+  }, [rm]);
+  return <span style={{ fontFamily: mono }}>{"⠋⠙⠸⠴"[frame]}</span>;
 }
 
 // ─── Cloud Sync Card ──────────────────────────────────────────────────────────
@@ -169,7 +127,7 @@ function CloudSyncCard() {
         return (
           <StatusChip color={C.good}>
             ✓ {syncStatus.message ?? "SYNCED"}
-            {syncStatus.at ? <span style={{ color: C.dimmer, fontWeight: 400 }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
+            {syncStatus.at ? <span style={{ color: C.dim, fontWeight: 400 }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
           </StatusChip>
         );
       case "error":
@@ -185,8 +143,9 @@ function CloudSyncCard() {
 
   return (
     <HudPanel>
-      <HudSectionLabel label="Cloud Sync" />
-      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 12px", lineHeight: 1.6 }}>
+      <SectionHeader label="Cloud Sync" />
+      {/* prose: sans for readability */}
+      <p style={{ color: C.dim, fontSize: 12, fontFamily: sans, margin: "0 0 12px", lineHeight: 1.6 }}>
         Offline-first — sync is entirely optional. When configured, it PUT/GETs one JSON file per home to
         any endpoint you control (S3 pre-signed URL, a small server, a Cloudflare Worker). Last-write-wins
         by timestamp. The deterministic diagnostic engine never needs network access.
@@ -241,20 +200,11 @@ function CloudSyncCard() {
         </div>
       </div>
 
-      <div style={{ marginTop: 10, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
+      <div style={{ marginTop: 10, color: C.dim, fontSize: 11, fontFamily: mono, lineHeight: 1.5 }}>
         Leave URL empty to disable cloud sync and clear saved config. Tokens are stored in this browser only.
       </div>
     </HudPanel>
   );
-}
-
-function SpinnerInline() {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % 4), 200);
-    return () => clearInterval(id);
-  }, []);
-  return <span style={{ fontFamily: mono }}>{"⠋⠙⠸⠴"[frame]}</span>;
 }
 
 export function SettingsView() {
@@ -300,7 +250,7 @@ export function SettingsView() {
 
       {/* ── HOME ──────────────────────────────────────────────────────── */}
       <HudPanel>
-        <HudSectionLabel label="Home" />
+        <SectionHeader label="Home" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, marginBottom: 12 }}>
           <Field label="Home name">
             <TextInput value={home.name} onChange={(v) => saveHome({ name: v })} />
@@ -308,12 +258,7 @@ export function SettingsView() {
         </div>
 
         <div style={{ borderTop: `1px solid ${HUD.line}`, paddingTop: 12, marginTop: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <span style={{ color: HUD.cyan, fontSize: 8, lineHeight: 1 }}>▸</span>
-            <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.dim, textTransform: "uppercase" as const }}>
-              Default Context — applied to new outlets
-            </span>
-          </div>
+          <SectionHeader label="Default Context" sub="— applied to new outlets" style={{ marginBottom: 10 }} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
             <Field label="Build era"><Select value={dm.era} options={ERAS} onChange={(v) => saveMeta({ era: v })} /></Field>
             <Field label="Wire material"><Select value={dm.wireMat} options={WIRES} onChange={(v) => saveMeta({ wireMat: v })} /></Field>
@@ -324,7 +269,7 @@ export function SettingsView() {
 
       {/* ── DATA ──────────────────────────────────────────────────────── */}
       <HudPanel>
-        <HudSectionLabel label="Data — Portable &amp; Offline-First" />
+        <SectionHeader label="Data — Portable &amp; Offline-First" />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           <button onClick={doExport} className="oi-press" style={solid(C.good)}>⬇ Export home JSON</button>
           <label className="oi-press" style={{ ...solid(C.blue), display: "inline-flex", alignItems: "center", cursor: "pointer" }}>
@@ -337,7 +282,7 @@ export function SettingsView() {
             {msg}
           </div>
         )}
-        <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+        <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, lineHeight: 1.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
           All data lives in this browser (IndexedDB) — zero network required.
           {storageUsage && (
             <StatusChip color={HUD.cyan}>
@@ -355,7 +300,7 @@ export function SettingsView() {
 
       {/* ── AI KEY ────────────────────────────────────────────────────── */}
       <HudPanel>
-        <HudSectionLabel label="AI Second Opinion — Optional Live Key" />
+        <SectionHeader label="AI Second Opinion — Optional Live Key" />
         <Field label="Anthropic API key (stored locally only)">
           <input
             type="password"
@@ -371,7 +316,7 @@ export function SettingsView() {
             }}
           />
         </Field>
-        <div style={{ marginTop: 8, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 8, color: C.dim, fontSize: 11, fontFamily: mono, lineHeight: 1.5 }}>
           Optional. The deterministic engine never needs this. With a key + connectivity, the Diagnose tab can
           call Claude for a second opinion; without it, use "Copy report → Claude". The key is stored only in this browser.
         </div>
@@ -379,14 +324,15 @@ export function SettingsView() {
 
       {/* ── METER SOURCE ──────────────────────────────────────────────── */}
       <HudPanel>
-        <HudSectionLabel label="Meter Source — Manual Entry + Experimental Hardware" />
+        <SectionHeader label="Meter Source — Manual Entry + Experimental Hardware" />
         <AdapterPanel />
       </HudPanel>
 
       {/* ── CLOUD SYNC ────────────────────────────────────────────────── */}
       <CloudSyncCard />
 
-      <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.6, padding: "0 4px" }}>
+      {/* ── Disclaimer ────────────────────────────────────────────────── */}
+      <div style={{ color: C.dim, fontSize: 11, fontFamily: sans, lineHeight: 1.6, padding: "0 4px" }}>
         Diagnostic support only. De-energize before opening an outlet or performing continuity/resistance checks. This tool does not replace a licensed electrician.
       </div>
     </div>
@@ -411,6 +357,6 @@ const ghost = (c: string): React.CSSProperties => ({
   borderRadius: 6,
   padding: "5px 9px",
   fontFamily: mono,
-  fontSize: 10,
+  fontSize: 11,
   cursor: "pointer",
 });

@@ -77,30 +77,36 @@ export function VerdictCluster({ result }: { result: Result }) {
       {/* Corner brackets */}
       <Bracket color={result.vColor} size={14} inset={4} weight={2} opacity={0.9} />
 
-      {/* Animated top scan line */}
-      {!reduced && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 2,
-            background: `linear-gradient(90deg,transparent 0%,${result.vColor}cc 40%,${result.vColor} 50%,${result.vColor}cc 60%,transparent 100%)`,
-            animation: "oi-scan 3.2s linear infinite",
-            opacity: 0.7,
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        />
+      {/* Top accent line — animated scan only on real severity verdicts, static otherwise */}
+      {(result.hold || result.verdictCode === "CONDEMN" || result.verdictCode === "DEFECT") ? (
+        !reduced ? (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              background: `linear-gradient(90deg,transparent 0%,${result.vColor}cc 40%,${result.vColor} 50%,${result.vColor}cc 60%,transparent 100%)`,
+              animation: "oi-scan 3.2s linear infinite",
+              opacity: 0.7,
+              pointerEvents: "none",
+              zIndex: 2,
+            }}
+          />
+        ) : (
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: result.vColor, opacity: 0.7, pointerEvents: "none", zIndex: 2 }} />
+        )
+      ) : (
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: `${result.vColor}55`, pointerEvents: "none", zIndex: 2 }} />
       )}
 
       {/* Section label */}
       <div style={{
-        color: C.dimmer,
-        fontSize: 9,
+        color: C.dim,
+        fontSize: 10,
         fontFamily: mono,
-        letterSpacing: 2,
+        letterSpacing: 1.5,
         fontWeight: 700,
         marginBottom: 14,
         textTransform: "uppercase",
@@ -212,7 +218,7 @@ export function VerdictCluster({ result }: { result: Result }) {
             flexShrink: 0,
           }}>
             {topFaultSev}
-            <div style={{ fontSize: 7.5, color: C.dimmer, fontWeight: 400, letterSpacing: 0.5, marginTop: 1 }}>/ 10</div>
+            <div style={{ fontSize: 10, color: C.dim, fontWeight: 400, letterSpacing: 0.5, marginTop: 1 }}>/ 10</div>
           </div>
         )}
       </div>
@@ -264,7 +270,7 @@ function TelChip({ label, value, unit, color }: { label: string; value: string; 
         {value}
         {unit && <span style={{ fontSize: 8.5, marginLeft: 1 }}>{unit}</span>}
       </span>
-      <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 7.5, letterSpacing: 0.6, marginTop: 3 }}>{label}</span>
+      <span style={{ color: C.dim, fontFamily: mono, fontSize: 10, letterSpacing: 1, marginTop: 3 }}>{label}</span>
     </div>
   );
 }

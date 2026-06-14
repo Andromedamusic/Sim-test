@@ -8,7 +8,7 @@ import React from "react";
 import type { HomeHealth } from "../../../core";
 import { C, mono, HUD, GRADE_COLOR, glow } from "../../theme";
 import { RadialGauge, AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
-import { Bar } from "../../components";
+import { Bar, SectionHeader } from "../../components";
 import { Bracket } from "../../hud/Bracket";
 
 interface Props {
@@ -63,8 +63,8 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
         {/* corner brackets */}
         <Bracket color={gradeColor} size={16} inset={4} weight={2} opacity={0.7} />
 
-        {/* animated scan-line */}
-        {!reduced && (
+        {/* scan-line: static top border normally; animated sweep only on safetyHold */}
+        {health.safetyHold && !reduced ? (
           <div
             style={{
               position: "absolute",
@@ -77,35 +77,29 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
               animation: "oi-scan 4s cubic-bezier(.4,0,.6,1) infinite",
             }}
           />
+        ) : (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: 2,
+              background: `linear-gradient(90deg, transparent 0%, ${gradeColor}33 30%, ${gradeColor}55 50%, ${gradeColor}33 70%, transparent 100%)`,
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
+          />
         )}
 
         <div style={{ position: "relative", zIndex: 1 }}>
           {/* section header row */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 18,
-            }}
-          >
-            <span style={{ color: HUD.cyan, fontSize: 10, lineHeight: 1 }}>◈</span>
-            <span
-              style={{
-                color: HUD.dimmer,
-                fontSize: 9,
-                fontFamily: mono,
-                fontWeight: 700,
-                letterSpacing: 2.5,
-                textTransform: "uppercase" as const,
-              }}
-            >
-              WHOLE-HOME ELECTRICAL HEALTH
-            </span>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: 18 }}>
+            <SectionHeader label="WHOLE-HOME ELECTRICAL HEALTH" style={{ flex: 1, margin: 0 }} />
             {health.safetyHold && (
               <span
                 style={{
-                  marginLeft: "auto",
+                  marginLeft: 8,
                   color: C.danger,
                   fontSize: 9,
                   fontFamily: mono,
@@ -115,8 +109,8 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                   borderRadius: 4,
                   padding: "2px 6px",
                   background: `${C.danger}18`,
+                  flexShrink: 0,
                 }}
-                className={reduced ? "" : "oi-pulse"}
               >
                 ⚠ SAFETY HOLD
               </span>
@@ -340,7 +334,6 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
               <Bracket color={C.danger} size={10} inset={2} weight={1.5} opacity={0.7} />
               <span
                 style={{ color: C.danger, fontSize: 18, flexShrink: 0, lineHeight: 1 }}
-                className={reduced ? "" : "oi-pulse"}
               >
                 ⚠
               </span>

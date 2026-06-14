@@ -232,10 +232,7 @@ export function InferenceView() {
           {/* Leading hypothesis detail */}
           {result.topFault !== "healthy" && (
             <GlowCard accent={FAULTS[result.topFault]?.color} className="oi-fadeup">
-              <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1.5, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: FAULTS[result.topFault]?.color, fontSize: 7 }}>◆</span>
-                LEADING HYPOTHESIS · {FAULTS[result.topFault].name.toUpperCase()}
-              </div>
+              <SectionHeader label={`LEADING HYPOTHESIS · ${FAULTS[result.topFault].name.toUpperCase()}`} />
               <Row label="Discriminator" val={FAULTS[result.topFault].discriminator} />
               <Row label="Remedy"        val={FAULTS[result.topFault].remedy} />
               <Row label="NEC"           val={FAULTS[result.topFault].nec} monoFont />
@@ -282,10 +279,7 @@ function NextBestTestPanel({ result }: { result: ReturnType<typeof analyzeOutlet
   if (result.nextBestTests.length === 0) {
     return (
       <GlowCard accent={C.amber} className="oi-fadeup">
-        <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1.5, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: C.amber, fontSize: 7 }}>◆</span>
-          NEXT-BEST TEST
-        </div>
+        <SectionHeader label="NEXT-BEST TEST" />
         <div style={{ color: C.dim, fontSize: 11 }}>All candidate tests measured.</div>
       </GlowCard>
     );
@@ -295,10 +289,7 @@ function NextBestTestPanel({ result }: { result: ReturnType<typeof analyzeOutlet
 
   return (
     <GlowCard accent={C.amber} className="oi-fadeup">
-      <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1.5, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ color: C.amber, fontSize: 7 }}>◆</span>
-        NEXT-BEST TEST — BY INFORMATION GAIN
-      </div>
+      <SectionHeader label="NEXT-BEST TEST" sub="by information gain" />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {result.nextBestTests.map((t, i) => {
@@ -414,11 +405,8 @@ function AIPanel({
 
   return (
     <GlowCard accent={C.blue} className="oi-fadeup" style={{ padding: "14px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: C.blue, fontSize: 7 }}>◆</span>
-          AI SECOND OPINION (advisory only)
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+        <SectionHeader label="AI SECOND OPINION" sub="advisory only" style={{ margin: 0, flex: 1 }} />
         {esc.eligible && <Pill color={C.amber}>escalation suggested</Pill>}
       </div>
 

@@ -41,6 +41,14 @@ export const holoGrad = "linear-gradient(135deg,#39BDF8 0%,#818CF8 100%)";
 export const amberGrad = "linear-gradient(135deg,#F8B544 0%,#F97316 100%)";
 export const glow = (c: string, a = 0.55): string => `0 0 24px -6px ${c}, 0 0 1px ${c}`;
 
+/** Humanist sans for multi-line prose (keep mono for labels/values/tables). */
+export const sans = 'system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+
+/** Canonical bracket tiers — hero / standard / compact. */
+export const BR_LG = { size: 14, weight: 2, opacity: 0.85 } as const;
+export const BR_MD = { size: 10, weight: 1.5, opacity: 0.5 } as const;
+export const BR_SM = { size: 7, weight: 1, opacity: 0.4 } as const;
+
 /** Health grade → colour, used across map + dashboard. */
 export const GRADE_COLOR: Record<string, string> = {
   GREEN: "#34D399",

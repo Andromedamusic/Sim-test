@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "../state/store";
 import { rollupHome } from "../core";
 import { C, mono, HUD, holoGrad, glow, GRADE_COLOR } from "./theme";
-import { Pill } from "./components";
+import { Pill, Sheet } from "./components";
 import { MotionStyles, useReducedMotion } from "./anim";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { Backdrop } from "./hud/Backdrop";
@@ -41,6 +41,7 @@ export function App() {
   const [tab, setTab] = useState<TabId>("home");
   const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [pip, setPip] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
   const reduced = useReducedMotion();
 
   useEffect(() => { init(); }, [init]);
@@ -54,7 +55,7 @@ export function App() {
   const health = useMemo(() => (model ? rollupHome(model) : null), [model, rev]);
 
   return (
-    <div style={{ minHeight: "100vh", position: "relative", display: "flex", flexDirection: "column", paddingBottom: 70 }}>
+    <div style={{ minHeight: "100vh", position: "relative", display: "flex", flexDirection: "column", paddingBottom: "calc(70px + env(safe-area-inset-bottom,0px))" }}>
       <MotionStyles />
       <Backdrop />
       <Boot />
@@ -70,16 +71,16 @@ export function App() {
         <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
           {/* ── HEADER ── */}
           <header style={{ background: "linear-gradient(180deg,rgba(7,11,18,0.92),rgba(7,11,18,0.66))", backdropFilter: "blur(10px)", borderBottom: `1px solid ${HUD.line}`, padding: "9px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 30 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <span className={reduced ? "" : "oi-spin-slow"} style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${C.blue}33`, borderTopColor: C.blue, boxShadow: `0 0 10px -2px ${C.blue}` }} />
-              <span style={{ fontFamily: mono, fontWeight: 800, fontSize: 14, letterSpacing: 1.5, background: holoGrad, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>OUTLET&nbsp;INTELLIGENCE</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+              <span style={{ width: 15, height: 15, borderRadius: "50%", border: `2px solid ${C.blue}44`, borderTopColor: C.blue, boxShadow: `0 0 8px -2px ${C.blue}`, flexShrink: 0 }} />
+              <span className="brandfull" style={{ fontFamily: mono, fontWeight: 800, fontSize: 14, letterSpacing: 1.2, background: holoGrad, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", whiteSpace: "nowrap" }}>OUTLET&nbsp;INTELLIGENCE</span>
             </div>
             <HomeSwitcher />
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              {health && <Pill color={GRADE_COLOR[health.grade]}>{health.safetyHold ? "⚠ SAFETY HOLD" : health.grade}</Pill>}
-              <button onClick={() => setPip((p) => !p)} title="Toggle live diagnostic" style={{ ...hudCtl, color: pip ? C.blue : C.dim, borderColor: pip ? `${C.blue}66` : HUD.line, boxShadow: pip ? glow(C.blue, 0.4) : "none" }}>◳ LIVE</button>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              {health && <Pill color={GRADE_COLOR[health.grade]}>{health.safetyHold ? "⚠ HOLD" : health.grade}</Pill>}
+              <button onClick={() => setPip((p) => !p)} title="Toggle live diagnostic" className="oi-press" style={{ ...hudCtl, color: pip ? C.blue : C.dim, borderColor: pip ? `${C.blue}66` : HUD.line, boxShadow: pip ? glow(C.blue, 0.4) : "none" }}>◳ LIVE</button>
               {memoryMode && <span title="IndexedDB unavailable — running in memory; export to save." style={{ fontSize: 9, fontFamily: mono, color: C.warn, letterSpacing: 1 }}>⚠ TEST</span>}
-              <span title={online ? "online" : "offline — engine fully functional"} style={{ fontSize: 9, fontFamily: mono, color: online ? C.good : C.dim, letterSpacing: 1 }}>{online ? "● ONLINE" : "○ OFFLINE"}</span>
+              <span className="hide-narrow" title={online ? "online" : "offline — engine fully functional"} style={{ fontSize: 9, fontFamily: mono, color: online ? C.good : C.dim, letterSpacing: 1 }}>{online ? "● ONLINE" : "○ OFFLINE"}</span>
             </div>
           </header>
 
@@ -109,23 +110,57 @@ export function App() {
           </main>
 
           {/* ── MOBILE DOCK ── */}
-          <nav className="botnav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(7,11,18,0.86)", backdropFilter: "blur(12px)", borderTop: `1px solid ${HUD.line}`, display: "none", justifyContent: "space-around", padding: "7px 4px 9px", zIndex: 40 }}>
+          <nav className="botnav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(7,11,18,0.9)", backdropFilter: "blur(12px)", borderTop: `1px solid ${HUD.line}`, display: "none", justifyContent: "space-around", padding: "6px 4px calc(8px + env(safe-area-inset-bottom,0px))", zIndex: 40 }}>
             {TABS.filter((t) => PRIMARY.includes(t.id)).map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} className="oi-press" style={{ background: "none", border: "none", color: tab === t.id ? C.blue : C.dim, fontSize: 9.5, fontFamily: mono, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 8px", letterSpacing: 0.5 }}>
-                <span style={{ fontSize: 17, filter: tab === t.id ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>{t.icon}</span>{t.label}
-              </button>
+              <DockBtn key={t.id} icon={t.icon} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
             ))}
+            <DockBtn icon="⋯" label="More" active={!PRIMARY.includes(tab)} onClick={() => setMoreOpen(true)} />
           </nav>
         </div>
       )}
+
+      {/* secondary tabs (mobile "More") */}
+      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="◆ ALL SECTIONS">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, paddingBottom: 8 }}>
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => { setTab(t.id); setMoreOpen(false); }} className="oi-press" style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "12px 13px", borderRadius: 9, minHeight: 48,
+              background: tab === t.id ? `${C.blue}1a` : "#0E1622", border: `1px solid ${tab === t.id ? `${C.blue}66` : HUD.line}`,
+              color: tab === t.id ? "#EAF6FF" : C.text, fontFamily: mono, fontSize: 13, fontWeight: 700, textAlign: "left",
+            }}>
+              <span style={{ fontSize: 17 }}>{t.icon}</span>{t.label}
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       <LiveDiagnostic open={pip && ready} onClose={() => setPip(false)} />
 
       <style>{`
         .topnav::-webkit-scrollbar{height:0}
-        @media (max-width:760px){ .botnav{display:flex !important} }
+        @media (max-width:760px){
+          .topnav{display:none !important}
+          .botnav{display:flex !important}
+        }
+        @media (max-width:430px){
+          .hide-narrow{display:none !important}
+          .brandfull{font-size:11px !important;letter-spacing:.4px !important}
+        }
       `}</style>
     </div>
+  );
+}
+
+function DockBtn({ icon, label, active, onClick }: { icon: string; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="oi-press" style={{
+      background: "none", border: "none", color: active ? C.blue : C.dim, fontFamily: mono,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+      minHeight: 48, minWidth: 52, padding: "4px 6px", flex: 1,
+    }}>
+      <span style={{ fontSize: 18, lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>{icon}</span>
+      <span style={{ fontSize: active ? 10.5 : 10, fontWeight: active ? 700 : 500 }}>{label}</span>
+    </button>
   );
 }
 
@@ -136,7 +171,7 @@ function CommandTab({ icon, label, active, onClick, reduced }: { icon: string; l
       onClick={onClick} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
       aria-current={active ? "page" : undefined} className="oi-press"
       style={{
-        position: "relative", display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", whiteSpace: "nowrap",
+        position: "relative", display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", whiteSpace: "nowrap",
         background: active ? `linear-gradient(180deg,${C.blue}22,${C.blue}0a)` : hover ? "rgba(57,189,248,0.06)" : "transparent",
         border: `1px solid ${active ? `${C.blue}66` : "transparent"}`,
         borderRadius: 8, color: active ? "#EAF6FF" : hover ? C.text : C.dim,
@@ -153,6 +188,6 @@ function CommandTab({ icon, label, active, onClick, reduced }: { icon: string; l
 }
 
 const hudCtl: React.CSSProperties = {
-  background: "rgba(57,189,248,0.06)", border: `1px solid ${HUD.line}`, borderRadius: 7,
-  padding: "5px 9px", fontSize: 9, fontFamily: mono, fontWeight: 800, letterSpacing: 1, cursor: "pointer",
+  background: "rgba(57,189,248,0.06)", border: `1px solid ${HUD.line}`, borderRadius: 8,
+  padding: "9px 11px", minHeight: 38, fontSize: 9.5, fontFamily: mono, fontWeight: 800, letterSpacing: 1, cursor: "pointer",
 };

@@ -26,7 +26,8 @@ export function Backdrop() {
       W = canvas.clientWidth; H = canvas.clientHeight;
       canvas.width = W * DPR; canvas.height = H * DPR;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      const n = Math.min(150, Math.floor((W * H) / 11000));
+      let n = Math.min(150, Math.floor((W * H) / 11000));
+      if (W < 600) n = Math.min(n, 56); // lighter particle load on phones
       stars = Array.from({ length: n }, () => ({
         x: Math.random() * W, y: Math.random() * H,
         z: 0.3 + Math.random() * 0.7, r: Math.random() * 1.3 + 0.2,
@@ -111,10 +112,15 @@ export function Backdrop() {
       ctx.restore();
       ctx.globalAlpha = 1;
 
-      raf = requestAnimationFrame(draw);
+      if (!reduce) raf = requestAnimationFrame(draw); // reduced-motion: one static frame
     };
     draw();
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); window.removeEventListener("pointermove", onMove); };
+    const onVis = () => { // pause the loop entirely when the tab is hidden (battery/CPU)
+      cancelAnimationFrame(raf);
+      if (!reduce && !document.hidden) raf = requestAnimationFrame(draw);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { cancelAnimationFrame(raf); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("resize", resize); window.removeEventListener("pointermove", onMove); };
   }, []);
 
   return (

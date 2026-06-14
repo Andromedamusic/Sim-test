@@ -126,10 +126,12 @@ export function RadialGauge({ value, max = 1, size = 132, thickness = 11, color,
 
 // spring value driven by rAF (critically-ish damped)
 export function useSpringValue(target: number, stiffness = 0.12, damp = 0.72): number {
+  const reduced = useReducedMotion();
   const [v, setV] = useState(target);
   const state = useRef({ v: target, vel: 0 });
   const raf = useRef(0);
   useEffect(() => {
+    if (reduced) { state.current.v = target; setV(target); return; }
     const tick = () => {
       const s = state.current;
       const force = (target - s.v) * stiffness;
@@ -141,7 +143,7 @@ export function useSpringValue(target: number, stiffness = 0.12, damp = 0.72): n
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-  }, [target, stiffness, damp]);
+  }, [target, stiffness, damp, reduced]);
   return v;
 }
 

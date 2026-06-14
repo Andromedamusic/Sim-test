@@ -20,10 +20,11 @@ const URGENCY_COLOR: Record<string, string> = {
   PLANNED: C.dim,
 };
 
-const RANK_MEDAL: Record<number, { bg: string; color: string; label: string }> = {
-  1: { bg: "#2D220099", color: "#F59E0B", label: "🥇" },
-  2: { bg: "#1C1C1C99", color: "#D1D5DB", label: "🥈" },
-  3: { bg: "#1C120099", color: "#D97706", label: "🥉" },
+// Rank badges: numbered circles colored by rank — gold/silver/bronze without medal emoji
+const RANK_MEDAL: Record<number, { bg: string; color: string; numColor: string }> = {
+  1: { bg: "#2D220099", color: "#F59E0B", numColor: "#F8B544" },  // gold
+  2: { bg: "#1C1C1C99", color: "#D1D5DB", numColor: "#C9D4E0" },  // silver
+  3: { bg: "#1C120099", color: "#D97706", numColor: "#C8804D" },  // bronze
 };
 
 export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onGoMap: () => void }) {
@@ -325,21 +326,37 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                       />
                     )}
 
-                    {/* rank badge */}
+                    {/* rank badge — numeric circle, no emoji */}
                     <div
                       style={{
-                        fontFamily: mono,
-                        fontWeight: 800,
                         minWidth: 30,
                         textAlign: "center",
                         flexShrink: 0,
-                        fontSize: medal ? 16 : 11,
-                        color: medal ? medal.color : uc,
-                        lineHeight: 1.4,
-                        paddingTop: medal ? 0 : 1,
+                        lineHeight: 1,
+                        paddingTop: 1,
                       }}
                     >
-                      {medal ? medal.label : (
+                      {medal ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 22,
+                            height: 22,
+                            borderRadius: "50%",
+                            background: `${medal.numColor}22`,
+                            border: `1.5px solid ${medal.numColor}88`,
+                            fontFamily: mono,
+                            fontWeight: 800,
+                            fontSize: 11,
+                            color: medal.numColor,
+                            boxShadow: `0 0 6px -1px ${medal.numColor}66`,
+                          }}
+                        >
+                          {it.rank}
+                        </span>
+                      ) : (
                         <span
                           style={{
                             display: "inline-block",
@@ -348,6 +365,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                             borderRadius: 5,
                             padding: "2px 5px",
                             fontSize: 10,
+                            fontFamily: mono,
+                            fontWeight: 800,
                             color: uc,
                           }}
                         >

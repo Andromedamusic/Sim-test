@@ -5,6 +5,7 @@ import { C, HUD, mono, sans, glow } from "../theme";
 import { Card, SectionHeader, SubH, Row, Tag } from "../components";
 import { RadialGauge, Sparkline, useReducedMotion } from "../anim";
 import { Bracket } from "../hud/Bracket";
+import { OIcon } from "../icons/OIcon";
 
 const SIG_ROWS: Array<{ key: keyof Fault["sig"]; label: string }> = [
   { key: "VHN", label: "V H→N" },
@@ -156,13 +157,14 @@ export function AtlasView() {
                 <SigSparkline sig={fault.sig} />
 
                 {isLethal && (
-                  <span
-                    className={reduced ? "" : "oi-pulse"}
+                  <OIcon
+                    name="cross"
+                    size={13}
+                    color={C.danger}
+                    accent={C.danger}
                     title="Lethal"
-                    style={{ fontSize: 11, color: C.danger }}
-                  >
-                    ☠
-                  </span>
+                    className={reduced ? "" : "oi-pulse"}
+                  />
                 )}
               </div>
             );

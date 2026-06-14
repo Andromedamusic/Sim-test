@@ -23,10 +23,11 @@ import { Bracket } from "../hud/Bracket";
 import { OIcon, type OIconName } from "../icons/OIcon";
 import { METER_NAMES, METERS } from "../meters";
 
-import { VerdictCluster }    from "../viz/inference/VerdictCluster";
-import { PosteriorRace }     from "../viz/inference/PosteriorRace";
-import { CriticTribunalViz } from "../viz/inference/CriticTribunalViz";
-import { OutletPhysicsSVG }  from "../viz/inference/OutletPhysicsSVG";
+import { VerdictCluster }       from "../viz/inference/VerdictCluster";
+import { MeasurementCoverage }  from "../viz/inference/MeasurementCoverage";
+import { PosteriorRace }        from "../viz/inference/PosteriorRace";
+import { CriticTribunalViz }    from "../viz/inference/CriticTribunalViz";
+import { OutletPhysicsSVG }     from "../viz/inference/OutletPhysicsSVG";
 
 const ERAS: Era[]             = ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"];
 const WIRES: WireMaterial[]   = ["Copper", "Aluminum", "Unknown"];
@@ -254,6 +255,9 @@ export function InferenceView() {
 
           {/* 1 — Verdict hero */}
           <VerdictCluster result={result} />
+
+          {/* 1.5 — Diagnostic progress: evidence coverage + certainty */}
+          <div className="oi-fadeup"><MeasurementCoverage obs={obs} result={result} /></div>
 
           {/* 2 — Sensor Feed (receptacle physics) */}
           <div className="oi-fadeup" style={{ display: "flex", justifyContent: "center" }}>

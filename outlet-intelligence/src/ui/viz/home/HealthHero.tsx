@@ -10,6 +10,7 @@ import { C, mono, HUD, GRADE_COLOR, glow } from "../../theme";
 import { RadialGauge, AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
 import { Bar, SectionHeader } from "../../components";
 import { Bracket } from "../../hud/Bracket";
+import { OIcon } from "../../icons/OIcon";
 
 interface Props {
   health: HomeHealth;
@@ -110,9 +111,13 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                   padding: "2px 6px",
                   background: `${C.danger}18`,
                   flexShrink: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
                 }}
               >
-                ⚠ SAFETY HOLD
+                <OIcon name="shield" size={11} color={C.danger} accent={C.danger} />
+                SAFETY HOLD
               </span>
             )}
           </div>
@@ -332,11 +337,7 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
               }}
             >
               <Bracket color={C.danger} size={10} inset={2} weight={1.5} opacity={0.7} />
-              <span
-                style={{ color: C.danger, fontSize: 18, flexShrink: 0, lineHeight: 1 }}
-              >
-                ⚠
-              </span>
+              <OIcon name="shield" size={20} color={C.danger} accent={C.danger} style={{ flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div
                   style={{

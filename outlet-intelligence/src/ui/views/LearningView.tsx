@@ -11,6 +11,7 @@ import type { FeedbackRow } from "../../data/db";
 import { C, mono, sans, btn, HUD, glow } from "../theme";
 import { AnimatedNumber, Sparkline, useReducedMotion } from "../anim";
 import { Field, Bar, Pill, SectionHeader, HudPanel } from "../components";
+import { OIcon } from "../icons/OIcon";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -288,8 +289,8 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
                   <td style={{ padding: "6px 8px" }}>
                     <Pill color={actualColor}>{faultLabel(row.actualFault)}</Pill>
                   </td>
-                  <td style={{ padding: "6px 8px", color: hit ? C.good : C.bad, fontSize: 13, fontWeight: 800 }}>
-                    {hit ? "✓" : "✗"}
+                  <td style={{ padding: "6px 8px" }}>
+                    {hit ? <OIcon name="check" size={14} color={C.good} /> : <OIcon name="cross" size={14} color={C.bad} />}
                   </td>
                 </tr>
               );

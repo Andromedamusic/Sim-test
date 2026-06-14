@@ -108,8 +108,8 @@ export function ReferenceView() {
               }}
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                {/* ▸ tick accent */}
-                <span style={{ color: HUD.cyan, fontSize: 10, fontFamily: mono, flexShrink: 0 }}>▸</span>
+                {/* section tick accent */}
+                <span style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
                 <span style={{
                   color: C.amber,
                   fontFamily: mono,
@@ -290,7 +290,7 @@ export function ReferenceView() {
                     gap: 5,
                     marginBottom: 2,
                   }}>
-                    <span style={{ color: HUD.cyan, fontSize: 10, fontFamily: mono }}>▸</span>
+                    <span style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
                     <span style={{
                       color: C.amber,
                       fontFamily: mono,

@@ -35,6 +35,7 @@ import { CircuitTrace } from "../viz/floorplan/CircuitTrace";
 import { Minimap } from "../viz/floorplan/Minimap";
 import { PhotoCaptureButton, PhotoStrip } from "../components/photo";
 import { Bracket } from "../hud/Bracket";
+import { OIcon } from "../icons/OIcon";
 
 const PAD = 1.2; // metres of padding around content
 
@@ -348,16 +349,18 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
               onClick={() => setMode(mode === "addOutlet" ? "select" : "addOutlet")}
               className="oi-press"
               style={hudTool(mode === "addOutlet" ? C.amber : HUD.dim, mode === "addOutlet")}>
-              {mode === "addOutlet" ? "● TAP WALL…" : "+ OUTLET"}
+              {mode === "addOutlet" ? (
+                <><span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: C.amber, verticalAlign: "middle", marginRight: 5 }} />TAP WALL…</>
+              ) : "+ OUTLET"}
             </button>
             <button
               onClick={() => setHeatmap((h) => !h)}
               className="oi-press"
               style={hudTool(heatmap ? GRADE_COLOR.AMBER : HUD.dim, heatmap)}
               title="Toggle room health heatmap">
-              {heatmap ? "◼ HEALTH" : "◻ HEALTH"}
+              <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: heatmap ? GRADE_COLOR.AMBER : "transparent", border: `1px solid ${heatmap ? GRADE_COLOR.AMBER : HUD.dim}`, verticalAlign: "middle", marginRight: 5 }} />HEALTH
             </button>
-            <button onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })} className="oi-press" style={hudTool(HUD.dim)}>⤢ FIT</button>
+            <button onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })} className="oi-press" style={hudTool(HUD.dim)}>FIT</button>
             <button onClick={() => handleZoom(1.25)} className="oi-press" style={hudTool(HUD.dim)}>＋</button>
             <button onClick={() => handleZoom(0.8)} className="oi-press" style={hudTool(HUD.dim)}>－</button>
           </div>
@@ -470,7 +473,7 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
             letterSpacing: 2,
             fontWeight: 700,
           }} className={reduced ? "" : "oi-pulse"}>
-            ● OUTLET PLACEMENT
+            <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: C.amber, verticalAlign: "middle", marginRight: 6 }} />OUTLET PLACEMENT
           </div>
         )}
 
@@ -912,7 +915,7 @@ function RoomInspector({ roomId }: { roomId: string }) {
                       style={{ marginLeft: "auto", background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 5, padding: "2px 7px", fontSize: 10, fontFamily: mono, cursor: "pointer" }}
                       title="Delete this vertex"
                     >
-                      ✕
+                      ×
                     </button>
                   )}
                 </div>
@@ -955,7 +958,7 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
   };
 
   return (
-    <Sheet open onClose={onClose} title={`📍 ${outlet.label}`}>
+    <Sheet open onClose={onClose} title={outlet.label}>
       <div style={{ display: "grid", gap: 10 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <Field label="Label"><TextInput value={label} onChange={setLabel} /></Field>
@@ -1007,7 +1010,7 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
         </div>
 
         <div style={{ position: "sticky", bottom: 0, background: C.panel, paddingTop: 8, zIndex: 1, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={run} className="oi-press" style={{ background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 800, fontFamily: mono, fontSize: 13, flex: 1 }}>✓ Save diagnosis</button>
+          <button onClick={run} className="oi-press" style={{ background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 800, fontFamily: mono, fontSize: 13, flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}><OIcon name="check" size={14} color="#0A0A0C" accent="#0A0A0C" /> Save diagnosis</button>
           <button onClick={() => { useStore.getState().setScratchObs(obs); useStore.getState().setScratchMeta(meta); onOpenDiagnose(); }} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Full analysis →</button>
           <button onClick={() => { removeOutlet(outletId); onClose(); }} className="oi-press" style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 8, padding: "10px 12px", fontFamily: mono, fontSize: 11.5 }}>Delete</button>
         </div>

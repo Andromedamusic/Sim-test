@@ -8,6 +8,7 @@ import type { CircuitHealth } from "../../../core";
 import { C, mono, HUD, GRADE_COLOR, glow } from "../../theme";
 import { AnimatedNumber, useReducedMotion } from "../../anim";
 import { Bracket } from "../../hud/Bracket";
+import { OIcon } from "../../icons/OIcon";
 
 interface Props {
   circuits: CircuitHealth[];
@@ -141,7 +142,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
             marginLeft: "auto",
           }}
         >
-          <span style={{ color: C.warn, fontSize: 10 }}>⚑</span>
+          <OIcon name="shield" size={12} color={C.warn} accent={C.warn} />
           systemic flag
         </div>
       </div>
@@ -205,15 +206,15 @@ function BreakerNode({
             position: "absolute",
             top: 6,
             right: 7,
-            fontSize: 11,
-            color: C.warn,
             lineHeight: 1,
             filter: !reduced ? `drop-shadow(0 0 4px ${C.warn}88)` : undefined,
+            display: "flex",
+            alignItems: "center",
           }}
           className={isWorst && !reduced ? "oi-pulse" : undefined}
           title={`${circuit.systemicFlags.length} systemic flag${circuit.systemicFlags.length !== 1 ? "s" : ""}`}
         >
-          ⚑
+          <OIcon name="shield" size={13} color={C.warn} accent={C.warn} />
         </span>
       )}
 

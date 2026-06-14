@@ -13,6 +13,7 @@ import { Field, TextInput, Select, SectionHeader, HudPanel } from "../components
 import { METER_NAMES, METERS } from "../meters";
 import { AdapterPanel } from "../components/AdapterPanel";
 import { useReducedMotion } from "../anim";
+import { OIcon } from "../icons/OIcon";
 
 const ERAS: Era[] = ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"];
 const WIRES: WireMaterial[] = ["Copper", "Aluminum", "Unknown"];
@@ -76,13 +77,18 @@ function StatusChip({ color, children }: { color: string; children: React.ReactN
 
 function SpinnerInline() {
   const rm = useReducedMotion();
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    if (rm) return;
-    const id = setInterval(() => setFrame((f) => (f + 1) % 4), 200);
-    return () => clearInterval(id);
-  }, [rm]);
-  return <span style={{ fontFamily: mono }}>{"⠋⠙⠸⠴"[frame]}</span>;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        animation: rm ? undefined : "oi-spin 0.8s linear infinite",
+      }}
+    >
+      <style>{`@keyframes oi-spin { to { transform: rotate(360deg); } }`}</style>
+      <OIcon name="sync" size={11} color="currentColor" />
+    </span>
+  );
 }
 
 // ─── Cloud Sync Card ──────────────────────────────────────────────────────────
@@ -125,14 +131,14 @@ function CloudSyncCard() {
       case "ok":
         return (
           <StatusChip color={C.good}>
-            ✓ {syncStatus.message ?? "SYNCED"}
+            <OIcon name="check" size={12} color={C.good} /> {syncStatus.message ?? "SYNCED"}
             {syncStatus.at ? <span style={{ color: C.dim, fontWeight: 400 }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
           </StatusChip>
         );
       case "error":
         return (
           <StatusChip color={C.bad}>
-            ✗ {syncStatus.message ?? "SYNC FAILED"}
+            <OIcon name="cross" size={12} color={C.bad} /> {syncStatus.message ?? "SYNC FAILED"}
           </StatusChip>
         );
       default:
@@ -184,16 +190,16 @@ function CloudSyncCard() {
         </Field>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={handleSave} className="oi-press" style={solid(C.blue)}>
-            {saved ? "✓ Saved" : "Save"}
+          <button onClick={handleSave} className="oi-press" style={{ ...solid(C.blue), display: "inline-flex", alignItems: "center", gap: 5 }}>
+            {saved ? <><OIcon name="check" size={12} color="#0A0A0C" /> Saved</> : "Save"}
           </button>
           <button
             onClick={() => syncNow()}
             disabled={syncing || !syncConfig}
             className="oi-press"
-            style={{ ...solid(C.amber), opacity: syncing || !syncConfig ? 0.45 : 1 }}
+            style={{ ...solid(C.amber), opacity: syncing || !syncConfig ? 0.45 : 1, display: "inline-flex", alignItems: "center", gap: 5 }}
           >
-            ⟲ Sync now
+            <OIcon name="sync" size={13} color="#0A0A0C" /> Sync now
           </button>
           {statusChip}
         </div>
@@ -234,8 +240,8 @@ export function SettingsView() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
-      try { await importDoc(JSON.parse(String(reader.result))); setMsg("✓ Imported home model."); }
-      catch (err) { setMsg("✗ Import failed: " + (err as Error).message); }
+      try { await importDoc(JSON.parse(String(reader.result))); setMsg("ok:Imported home model."); }
+      catch (err) { setMsg("err:Import failed: " + (err as Error).message); }
     };
     reader.readAsText(file);
   };
@@ -270,15 +276,18 @@ export function SettingsView() {
       <HudPanel>
         <SectionHeader label="Data — Portable &amp; Offline-First" />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-          <button onClick={doExport} className="oi-press" style={solid(C.good)}>⬇ Export home JSON</button>
-          <label className="oi-press" style={{ ...solid(C.blue), display: "inline-flex", alignItems: "center", cursor: "pointer" }}>
-            ⬆ Import JSON
+          <button onClick={doExport} className="oi-press" style={{ ...solid(C.good), display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <OIcon name="export" size={13} color="#0A0A0C" /> Export home JSON
+          </button>
+          <label className="oi-press" style={{ ...solid(C.blue), display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+            <OIcon name="import" size={13} color="#0A0A0C" /> Import JSON
             <input type="file" accept="application/json" onChange={doImport} style={{ display: "none" }} />
           </label>
         </div>
         {msg && (
-          <div className={rm ? undefined : "oi-fadeup"} style={{ marginBottom: 8, color: msg.startsWith("✓") ? C.good : C.bad, fontSize: 11, fontFamily: mono }}>
-            {msg}
+          <div className={rm ? undefined : "oi-fadeup"} style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8, color: msg.startsWith("ok:") ? C.good : C.bad, fontSize: 11, fontFamily: mono }}>
+            {msg.startsWith("ok:") ? <OIcon name="check" size={12} color={C.good} /> : <OIcon name="cross" size={12} color={C.bad} />}
+            {msg.startsWith("ok:") ? msg.slice(3) : msg.startsWith("err:") ? msg.slice(4) : msg}
           </div>
         )}
         <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, lineHeight: 1.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
@@ -289,7 +298,7 @@ export function SettingsView() {
             </StatusChip>
           )}
           <button
-            onClick={() => requestPersistence().then((ok) => setMsg(ok ? "✓ Persistent storage granted." : "Persistence not granted."))}
+            onClick={() => requestPersistence().then((ok) => setMsg(ok ? "ok:Persistent storage granted." : "err:Persistence not granted."))}
             style={ghost(C.dim)}
           >
             Request durable storage

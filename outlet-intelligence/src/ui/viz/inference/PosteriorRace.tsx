@@ -8,6 +8,7 @@ import { AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
 import { C, HUD, mono } from "../../theme";
 import { FAULTS, topN } from "../../../core";
 import type { analyzeOutlet } from "../../../core";
+import { OIcon } from "../../icons/OIcon";
 
 type Result = ReturnType<typeof analyzeOutlet>;
 
@@ -83,7 +84,7 @@ export function PosteriorRace({ post, topFault }: { post: Result["post"]; topFau
                     letterSpacing: isMap ? 0.4 : 0,
                   }}>
                     {f.name}
-                    {isLethal && <span style={{ marginLeft: 6, fontSize: 10, color: C.danger }}>☠</span>}
+                    {isLethal && <OIcon name="verdictHold" size={13} color={C.danger} accent={C.danger} style={{ marginLeft: 5, flexShrink: 0 }} />}
                   </span>
                 </div>
 
@@ -160,7 +161,7 @@ function Header() {
       alignItems: "center",
       gap: 6,
     }}>
-      <span style={{ color: HUD.cyan, fontSize: 7 }}>◆</span>
+      <span style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
       POSTERIOR — FAULT PROBABILITY
     </div>
   );

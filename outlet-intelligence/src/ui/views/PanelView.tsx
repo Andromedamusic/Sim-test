@@ -18,6 +18,7 @@ import { C, mono, HUD, GRADE_COLOR, VERDICT_COLOR, btn } from "../theme";
 import { Card, Pill } from "../components";
 import { Bracket } from "../hud/Bracket";
 import { useReducedMotion } from "../anim";
+import { OIcon } from "../icons/OIcon";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,10 +125,14 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           {hasSystemic && (
-            <span title="Systemic flag detected" style={{
-              fontSize: 9, color: C.warn,
-              filter: `drop-shadow(0 0 3px ${C.warn}99)`,
-            }}>⚠</span>
+            <OIcon
+              name="shield"
+              size={11}
+              color={C.warn}
+              accent={C.warn}
+              title="Systemic flag detected"
+              style={{ filter: `drop-shadow(0 0 3px ${C.warn}99)` }}
+            />
           )}
           {/* Grade LED */}
           <div style={{
@@ -188,11 +193,13 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
             title="Edit label"
             style={{
               background: "none", border: "none", padding: "2px 3px", cursor: "pointer",
-              color: HUD.dimmer, fontSize: 10, lineHeight: 1, flexShrink: 0,
-              opacity: 0.6,
+              color: HUD.dimmer, lineHeight: 1, flexShrink: 0,
+              opacity: 0.6, display: "flex", alignItems: "center",
             }}
             aria-label="Edit circuit label"
-          >✎</button>
+          >
+            <OIcon name="settings" size={10} color={HUD.dimmer} accent={HUD.dimmer} />
+          </button>
         </div>
       )}
 
@@ -225,7 +232,7 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumbe
             title="Double-click or long-press to edit amperage"
             style={{ fontFamily: mono, fontSize: 10, color: selected ? gradeColor : HUD.dimmer, fontWeight: 700, letterSpacing: 0.5, userSelect: "none", cursor: "pointer" }}
           >
-            {circuit.ampRating}A✎
+            {circuit.ampRating}A
           </span>
         )}
         <span style={{ fontFamily: mono, fontSize: 10, color: HUD.dimmer, letterSpacing: 0.5 }}>{circuit.voltage}V</span>
@@ -515,8 +522,10 @@ export function PanelView() {
             <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: HUD.text, lineHeight: 1.2, letterSpacing: 0.5 }}>
               Main Panel
             </h2>
-            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 10, color: HUD.dim, letterSpacing: 0.5 }}>
-              {model.circuits.length} circuit{model.circuits.length !== 1 ? "s" : ""} &middot; tap ✎ or long-press to edit label / amperage
+            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 10, color: HUD.dim, letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              {model.circuits.length} circuit{model.circuits.length !== 1 ? "s" : ""} &middot; tap{" "}
+              <OIcon name="settings" size={11} color={HUD.dim} accent={HUD.dim} />{" "}
+              or long-press to edit label / amperage
             </p>
           </div>
           <AddCircuitButton />
@@ -536,7 +545,8 @@ export function PanelView() {
           marginBottom: 12,
           letterSpacing: 1,
         }}>
-          ● TRACER ACTIVE on {model.circuits.find((c) => c.id === tracerCircuitId)?.breakerLabel ?? "unknown"}
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.amber, display: "inline-block", marginRight: 6, boxShadow: `0 0 5px ${C.amber}88`, flexShrink: 0, verticalAlign: "middle" }} />
+          TRACER ACTIVE on {model.circuits.find((c) => c.id === tracerCircuitId)?.breakerLabel ?? "unknown"}
           {" "}— select that circuit below to manage it.
         </div>
       )}
@@ -675,7 +685,7 @@ export function PanelView() {
               </div>
             ))}
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ fontSize: 9, color: C.warn }}>⚠</span>
+              <OIcon name="shield" size={10} color={C.warn} accent={C.warn} />
               <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer }}>Systemic flag</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>

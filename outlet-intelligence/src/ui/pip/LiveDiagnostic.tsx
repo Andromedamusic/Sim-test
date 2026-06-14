@@ -11,6 +11,7 @@ import { analyzeOutlet, FAULTS, num } from "../../core";
 import { C, mono, HUD, glow } from "../theme";
 import { RadialGauge, useReducedMotion } from "../anim";
 import { Bracket } from "../hud/Bracket";
+import { OIcon } from "../icons/OIcon";
 
 const SHORT: Record<string, string> = { "SAFETY HOLD": "HOLD", CONDEMN: "CONDEMN", DEFECT: "DEFECT", MINOR: "MINOR", PASS: "PASS", INCONCLUSIVE: "WAIT" };
 const DOCK = 66;
@@ -101,8 +102,8 @@ export function LiveDiagnostic({ open, onClose }: { open: boolean; onClose: () =
         <span className={reduced ? "" : "oi-pulse"} style={{ width: 7, height: 7, borderRadius: 99, background: color, boxShadow: `0 0 8px ${color}` }} />
         <span style={{ color, fontSize: 9.5, fontWeight: 800, letterSpacing: 1.5 }}>LIVE</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setMin((m) => !m)} title="Minimise" style={iconBtn}>{min ? "▢" : "—"}</button>
-          <button onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close" style={iconBtn}>✕</button>
+          <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setMin((m) => !m)} title="Minimise" style={iconBtn}>{min ? <span style={{ display: "inline-block", width: 9, height: 9, border: `1.5px solid currentColor`, borderRadius: 1, verticalAlign: "middle" }} /> : "—"}</button>
+          <button onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close" style={iconBtn}>×</button>
         </span>
       </div>
 
@@ -118,7 +119,7 @@ export function LiveDiagnostic({ open, onClose }: { open: boolean; onClose: () =
             <RadialGauge value={r.confidence} size={90} thickness={8} color={color} label={SHORT[r.verdictCode] ?? ""} sublabel="CONF" />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: C.dim, fontSize: 9, letterSpacing: 1 }}>LEADING</div>
-              <div style={{ color: top?.color ?? C.text, fontSize: 12.5, fontWeight: 700, lineHeight: 1.2 }}>{top?.name ?? "—"}{top?.lethal ? " ☠" : ""}</div>
+              <div style={{ color: top?.color ?? C.text, fontSize: 12.5, fontWeight: 700, lineHeight: 1.2, display: "flex", alignItems: "center", gap: 5 }}>{top?.name ?? "—"}{top?.lethal ? <OIcon name="verdictHold" size={14} color={C.danger} accent={C.danger} /> : null}</div>
               <div style={{ marginTop: 6, color: C.dim, fontSize: 9, letterSpacing: 1 }}>SEVERITY</div>
               <div style={{ color, fontSize: 13, fontWeight: 800 }}>{top?.sev ?? 0}/10</div>
             </div>
@@ -130,7 +131,7 @@ export function LiveDiagnostic({ open, onClose }: { open: boolean; onClose: () =
           </div>
           {r.hold && (
             <div style={{ marginTop: 9, background: "#2a0808", border: "1px solid #7f1d1d", borderRadius: 6, padding: "6px 8px", color: "#fecaca", fontSize: 9.5, lineHeight: 1.4 }}>
-              ☠ SAFETY HOLD — {r.demand[0] ?? "do not clear"}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><OIcon name="shield" size={13} color="#fecaca" accent="#fecaca" /> SAFETY HOLD — {r.demand[0] ?? "do not clear"}</span>
             </div>
           )}
         </div>

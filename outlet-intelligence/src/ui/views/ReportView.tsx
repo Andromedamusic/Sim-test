@@ -10,6 +10,7 @@ import { rollupHome, FAULTS } from "../../core";
 import type { HomeHealth, RemediationItem, SystemicFlag, OutletHealth } from "../../core";
 import { C, mono, GRADE_COLOR, VERDICT_COLOR, HUD, glow } from "../theme";
 import { Bracket } from "../hud/Bracket";
+import { OIcon } from "../icons/OIcon";
 
 // ─── local style helpers ──────────────────────────────────────────────────────
 const TH: React.CSSProperties = {
@@ -119,7 +120,7 @@ function SafetyHoldBanner(): React.ReactElement {
         gap: 10,
       }}
     >
-      <span style={{ color: C.danger, fontFamily: mono, fontWeight: 900, fontSize: 14 }}>⚠ SAFETY HOLD</span>
+      <span style={{ color: C.danger, fontFamily: mono, fontWeight: 900, fontSize: 14, display: "inline-flex", alignItems: "center", gap: 6 }}><OIcon name="bolt" size={14} color={C.danger} /> SAFETY HOLD</span>
       <span style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 11 }}>
         One or more outlets have active lethal fault conditions. Do not use until cleared by a licensed electrician.
       </span>
@@ -131,7 +132,7 @@ function SafetyHoldBanner(): React.ReactElement {
 function HudSectionHead({ label, className }: { label: string; className?: string }): React.ReactElement {
   return (
     <div className={className} style={{ ...SECTION_HEAD, display: "flex", alignItems: "center", gap: 7 }}>
-      <span style={{ color: HUD.cyan, fontSize: 9, lineHeight: 1 }} aria-hidden="true">◆</span>
+      <span aria-hidden="true" style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
       <span style={{ letterSpacing: 2 }}>{label}</span>
     </div>
   );
@@ -374,7 +375,7 @@ export function ReportView(): React.ReactElement {
           }}>
             <Bracket color={HUD.cyan} size={8} inset={3} weight={1} opacity={0.45} />
             <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-              <span style={{ color: HUD.cyan, fontSize: 8 }}>◆</span>
+              <span aria-hidden="true" style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
               <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.cyan, textTransform: "uppercase" as const }}>
                 Inspection Report
               </span>
@@ -396,7 +397,9 @@ export function ReportView(): React.ReactElement {
                 boxShadow: glow(HUD.cyan, 0.35),
               }}
             >
-              🖨 Print / Save as PDF
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <OIcon name="export" size={14} color="#04060B" /> Print / Save as PDF
+              </span>
             </button>
             <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 10 }}>
               Choose "Save as PDF" from the print destination to export offline.

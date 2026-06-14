@@ -179,7 +179,7 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
         alignItems: "center",
         gap: 5,
       }}>
-        <span style={{ color: HUD.cyan, fontSize: 7 }}>◆</span>
+        <span style={{ width: 3, height: 9, borderRadius: 2, background: HUD.cyan, display: "inline-block", flexShrink: 0 }} />
         SENSOR FEED · RECEPTACLE
         {/* Live indicator dot — always show, but only pulse when a fault is present */}
         <span style={{
@@ -293,18 +293,22 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
         {/* (H↔N is shown in the LIVE TELEMETRY strip above — omitted here to
             avoid colliding with the ground/phantom callout.) */}
 
-        {/* REV polarity badge */}
+        {/* REV polarity badge — drawn bolt, no emoji */}
         {reversed && (
           <g>
             <rect
-              x={CX - 20} y={BODY_CY - 14} width={40} height={17} rx={5}
+              x={CX - 24} y={BODY_CY - 14} width={48} height={17} rx={5}
               fill={revFlash ? "#7F1D1D" : "#1A0404"} stroke="#DC2626" strokeWidth={1.5}
             />
+            <path
+              d={`M${CX - 14},${BODY_CY - 11} l3.4,0 l-2,3 l3,0 l-4.4,5.2 l1.2,-4 l-2.2,0 z`}
+              fill={revFlash ? "#FCA5A5" : "#DC262688"} stroke="none"
+            />
             <text
-              x={CX} y={BODY_CY - 1} textAnchor="middle"
+              x={CX + 5} y={BODY_CY - 1} textAnchor="middle"
               fontFamily={mono} fontSize={10} fontWeight="bold"
               fill={revFlash ? "#FCA5A5" : "#DC262688"}>
-              ⚡ REV
+              REV
             </text>
           </g>
         )}

@@ -9,11 +9,10 @@ import { type Era, type WireMaterial } from "../../core";
 import { exportHome, downloadJSON, getSetting, setSetting, putHome } from "../../data/storage";
 import { storageEstimate, requestPersistence } from "../../data/db";
 import { C, mono, sans, HUD, glow } from "../theme";
-import { Card, Field, TextInput, Select, SubH, SectionHeader, HudPanel } from "../components";
+import { Field, TextInput, Select, SectionHeader, HudPanel } from "../components";
 import { METER_NAMES, METERS } from "../meters";
 import { AdapterPanel } from "../components/AdapterPanel";
 import { useReducedMotion } from "../anim";
-import { Bracket } from "../hud/Bracket";
 
 const ERAS: Era[] = ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"];
 const WIRES: WireMaterial[] = ["Copper", "Aluminum", "Unknown"];

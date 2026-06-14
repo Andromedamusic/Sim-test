@@ -150,10 +150,10 @@ export function PosteriorRace({ post, topFault }: { post: Result["post"]; topFau
 function Header() {
   return (
     <div style={{
-      color: C.dimmer,
-      fontSize: 9,
+      color: C.dim,
+      fontSize: 10,
       fontFamily: mono,
-      letterSpacing: 2,
+      letterSpacing: 1.5,
       fontWeight: 700,
       marginBottom: 12,
       display: "flex",

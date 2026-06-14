@@ -515,8 +515,8 @@ export function PanelView() {
             <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: HUD.text, lineHeight: 1.2, letterSpacing: 0.5 }}>
               Main Panel
             </h2>
-            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 9, color: HUD.dim, letterSpacing: 0.5 }}>
-              {model.circuits.length} circuit{model.circuits.length !== 1 ? "s" : ""} &middot; double-click a breaker to edit label or amperage
+            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 10, color: HUD.dim, letterSpacing: 0.5 }}>
+              {model.circuits.length} circuit{model.circuits.length !== 1 ? "s" : ""} &middot; tap ✎ or long-press to edit label / amperage
             </p>
           </div>
           <AddCircuitButton />

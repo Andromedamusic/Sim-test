@@ -21,7 +21,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
     return (
       <div
         style={{
-          color: C.dimmer,
+          color: C.dim,
           fontSize: 11,
           fontFamily: mono,
           padding: "14px 0",
@@ -38,6 +38,12 @@ export function CircuitBus({ circuits, nameOf }: Props) {
   const sorted = [...circuits].sort(
     (a, b) => (gradeRank[a.grade] ?? 9) - (gradeRank[b.grade] ?? 9)
   );
+
+  // Identify the single worst RED circuit (highest risk) for targeted pulsing
+  const redCircuits = sorted.filter((c) => c.grade === "RED");
+  const worstRedId = redCircuits.length > 0
+    ? redCircuits.reduce((worst, c) => c.risk > worst.risk ? c : worst, redCircuits[0]).circuitId
+    : null;
 
   return (
     <div>
@@ -79,6 +85,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
               circuit={c}
               name={nameOf(c.circuitId)}
               reduced={reduced}
+              isWorst={c.circuitId === worstRedId}
             />
           ))}
         </div>
@@ -103,8 +110,8 @@ export function CircuitBus({ circuits, nameOf }: Props) {
               display: "flex",
               alignItems: "center",
               gap: 5,
-              color: C.dimmer,
-              fontSize: 8.5,
+              color: C.dim,
+              fontSize: 10,
               fontFamily: mono,
               letterSpacing: 0.8,
             }}
@@ -128,8 +135,8 @@ export function CircuitBus({ circuits, nameOf }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 5,
-            color: C.dimmer,
-            fontSize: 8.5,
+            color: C.dim,
+            fontSize: 10,
             fontFamily: mono,
             marginLeft: "auto",
           }}
@@ -146,10 +153,12 @@ function BreakerNode({
   circuit,
   name,
   reduced,
+  isWorst,
 }: {
   circuit: CircuitHealth;
   name: string;
   reduced: boolean;
+  isWorst: boolean;
 }) {
   const color = GRADE_COLOR[circuit.grade];
   const hasFlags = circuit.systemicFlags.length > 0;
@@ -201,7 +210,7 @@ function BreakerNode({
             lineHeight: 1,
             filter: !reduced ? `drop-shadow(0 0 4px ${C.warn}88)` : undefined,
           }}
-          className={!reduced && isDanger ? "oi-pulse" : undefined}
+          className={isWorst && !reduced ? "oi-pulse" : undefined}
           title={`${circuit.systemicFlags.length} systemic flag${circuit.systemicFlags.length !== 1 ? "s" : ""}`}
         >
           ⚑
@@ -227,14 +236,14 @@ function BreakerNode({
             flexShrink: 0,
             boxShadow: !reduced ? glow(color, 0.5) : undefined,
           }}
-          className={isDanger && !reduced ? "oi-pulse" : undefined}
+          className={isWorst && !reduced ? "oi-pulse" : undefined}
         />
         <span
           style={{
             color,
             fontFamily: mono,
             fontWeight: 800,
-            fontSize: 9,
+            fontSize: 10,
             letterSpacing: 1.2,
           }}
         >
@@ -272,8 +281,8 @@ function BreakerNode({
       >
         <span
           style={{
-            color: C.dimmer,
-            fontSize: 9,
+            color: C.dim,
+            fontSize: 10,
             fontFamily: mono,
           }}
         >
@@ -283,7 +292,7 @@ function BreakerNode({
         <span
           style={{
             color,
-            fontSize: 9.5,
+            fontSize: 10,
             fontFamily: mono,
             fontWeight: 800,
           }}

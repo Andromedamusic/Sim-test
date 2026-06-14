@@ -8,10 +8,9 @@ import { useStore } from "../../state/store";
 import { FAULTS, FK, referenceBaseFreq } from "../../core";
 import { listFeedback } from "../../data/storage";
 import type { FeedbackRow } from "../../data/db";
-import { C, mono, VERDICT_COLOR, btn, HUD, glow } from "../theme";
+import { C, mono, sans, btn, HUD, glow } from "../theme";
 import { AnimatedNumber, Sparkline, useReducedMotion } from "../anim";
-import { Card, Field, Bar, Pill } from "../components";
-import { Bracket } from "../hud/Bracket";
+import { Field, Bar, Pill, SectionHeader, HudPanel } from "../components";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,41 +22,40 @@ function shortDate(iso: string): string {
   try { return new Date(iso).toLocaleDateString(); } catch { return iso; }
 }
 
-// ─── HUD section label ────────────────────────────────────────────────────────
+// ─── Responsive grid styles injected once ────────────────────────────────────
 
-function HudLabel({ label, sub }: { label: string; sub?: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: sub ? 4 : 10 }}>
-      <span style={{ color: HUD.cyan, fontSize: 8, lineHeight: 1 }}>◆</span>
-      <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.cyan, textTransform: "uppercase" as const }}>
-        {label}
-      </span>
-      {sub && <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dimmer, letterSpacing: 1 }}>— {sub}</span>}
-    </div>
-  );
+const LEARNED_MODEL_STYLES = `
+.oi-lm-row {
+  display: grid;
+  grid-template-columns: 1fr 52px 58px 100px;
+  gap: 6px;
+  align-items: center;
 }
-
-// ─── HUD panel wrapper ────────────────────────────────────────────────────────
-
-function HudPanel({ children, style, className }: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
-  const rm = useReducedMotion();
-  return (
-    <div
-      className={rm ? className : `oi-fadeup${className ? " " + className : ""}`}
-      style={{
-        position: "relative",
-        background: HUD.panel,
-        border: `1px solid ${HUD.line}`,
-        borderRadius: 10,
-        padding: "14px 16px",
-        ...style,
-      }}
-    >
-      <Bracket color={HUD.cyan} size={9} inset={3} weight={1} opacity={0.45} />
-      {children}
-    </div>
-  );
+.oi-lm-header {
+  display: grid;
+  grid-template-columns: 1fr 52px 58px 100px;
+  gap: 6px;
+  padding: 4px 0 6px;
 }
+@media (max-width: 500px) {
+  .oi-lm-row {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 2px;
+    column-gap: 8px;
+  }
+  .oi-lm-row .lm-name {
+    flex: 1 1 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+  .oi-lm-row .lm-conf { order: 2; }
+  .oi-lm-row .lm-base { order: 3; }
+  .oi-lm-row .lm-mult { order: 4; flex: 1 0 auto; }
+  .oi-lm-header { display: none; }
+}
+`;
 
 // ─── Styled select helper ─────────────────────────────────────────────────────
 
@@ -161,15 +159,16 @@ function RecordPanel() {
 
   return (
     <HudPanel style={{ marginBottom: 14 }}>
-      <HudLabel label="Record Ground Truth" />
-      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 12px", lineHeight: 1.6 }}>
+      <SectionHeader label="Record Ground Truth" />
+      {/* prose: sans for readability */}
+      <p style={{ color: C.dim, fontSize: 12, fontFamily: sans, margin: "0 0 12px", lineHeight: 1.6 }}>
         After physically confirming a fault (opened device, panel test, electrician report),
         record the true outcome here. Each submission recalibrates the engine's local priors
         so subsequent predictions improve over time — even fully offline.
       </p>
 
       {candidates.length === 0 ? (
-        <div style={{ color: C.dimmer, fontSize: 11, fontFamily: mono, padding: "8px 0" }}>
+        <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, padding: "8px 0" }}>
           No measured outlets yet. Run a measurement in the Inference view first.
         </div>
       ) : (
@@ -236,7 +235,7 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
 
   if (!rows.length) {
     return (
-      <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11, padding: "8px 0" }}>
+      <div style={{ color: C.dim, fontFamily: mono, fontSize: 11, padding: "8px 0" }}>
         No feedback recorded yet.
       </div>
     );
@@ -250,14 +249,14 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontFamily: mono, fontSize: 11, color: C.dim, display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: HUD.dimmer }}>ACCURACY</span>
+          <span style={{ color: C.dim }}>ACCURACY</span>
           <AnimatedNumber
             value={accuracy}
             decimals={1}
             suffix="%"
             style={{ color: accColor, fontWeight: 800, fontSize: 14 }}
           />
-          <span style={{ color: C.dimmer }}>({hits}/{rows.length} correct)</span>
+          <span style={{ color: C.dim }}>({hits}/{rows.length} correct)</span>
         </div>
       </div>
 
@@ -266,7 +265,7 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
           <thead>
             <tr style={{ borderBottom: `1px solid ${HUD.lineHi}` }}>
               {["DATE", "OUTLET", "PREDICTED", "ACTUAL", ""].map((h) => (
-                <th key={h} style={{ padding: "5px 8px", color: HUD.dimmer, textAlign: "left", fontWeight: 700, fontSize: 9, letterSpacing: 1 }}>{h}</th>
+                <th key={h} style={{ padding: "5px 8px", color: C.dim, textAlign: "left", fontWeight: 700, fontSize: 10, letterSpacing: 1 }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -281,7 +280,7 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
                   className="oi-lift"
                   style={{ borderBottom: `1px solid ${HUD.line}`, transition: "background .15s" }}
                 >
-                  <td style={{ padding: "6px 8px", color: C.dimmer }}>{shortDate(row.submittedAt)}</td>
+                  <td style={{ padding: "6px 8px", color: C.dim }}>{shortDate(row.submittedAt)}</td>
                   <td style={{ padding: "6px 8px", color: C.dim }}>{row.outletId.slice(0, 8)}&hellip;</td>
                   <td style={{ padding: "6px 8px" }}>
                     <Pill color={predColor}>{faultLabel(row.predictedFault)}</Pill>
@@ -307,6 +306,7 @@ function FeedbackLog({ onLoaded }: { onLoaded: (rows: FeedbackRow[]) => void }) 
 function LearnedPriors() {
   const priorScale = useStore((s) => s.priorScale);
   const resetLearning = useStore((s) => s.resetLearning);
+  const rm = useReducedMotion();
   const [confirming, setConfirming] = useState(false);
 
   const entries = Object.entries(priorScale).filter(([, v]) => v !== 1);
@@ -323,7 +323,7 @@ function LearnedPriors() {
   return (
     <HudPanel>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <HudLabel label="Learned Priors" />
+        <SectionHeader label="Learned Priors" style={{ flex: 1, marginBottom: 0 }} />
         <button
           onClick={handleReset}
           className="oi-press"
@@ -334,7 +334,7 @@ function LearnedPriors() {
       </div>
 
       {entries.length === 0 ? (
-        <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11, padding: "6px 0" }}>
+        <div style={{ color: C.dim, fontFamily: mono, fontSize: 11, padding: "6px 0" }}>
           No priors learned yet — all multipliers at 1.0×.
         </div>
       ) : (
@@ -352,7 +352,8 @@ function LearnedPriors() {
                       {faultLabel(faultId)}
                     </span>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Sparkline data={sparkData(scale)} width={60} height={20} color={color} />
+                      {/* Sparkline animation gated on reduced-motion */}
+                      {!rm && <Sparkline data={sparkData(scale)} width={60} height={20} color={color} />}
                       <AnimatedNumber
                         value={scale}
                         decimals={2}
@@ -368,7 +369,7 @@ function LearnedPriors() {
         </div>
       )}
       {confirming && (
-        <div className="oi-fadeup" style={{ marginTop: 8, color: C.warn, fontFamily: mono, fontSize: 10 }}>
+        <div className="oi-fadeup" style={{ marginTop: 8, color: C.warn, fontFamily: mono, fontSize: 11 }}>
           Click again to confirm. All learned multipliers will be reset to 1.0×.
         </div>
       )}
@@ -402,11 +403,12 @@ function LearnedModel() {
   if (rows.length === 0) {
     return (
       <HudPanel>
-        <HudLabel label="Learned Model" sub="Bayesian console" />
-        <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11, padding: "6px 0" }}>
+        <SectionHeader label="Learned Model" sub="Bayesian console" />
+        <div style={{ color: C.dim, fontFamily: mono, fontSize: 11, padding: "6px 0" }}>
           No ground-truth confirmations yet — submit at least one ground truth to see the learned model.
         </div>
-        <p style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.6, margin: "8px 0 0" }}>
+        {/* prose: sans for the explainer paragraph */}
+        <p style={{ color: C.dim, fontSize: 12, fontFamily: sans, lineHeight: 1.6, margin: "8px 0 0" }}>
           Confirmed ground truths are modeled as multinomial counts; a Dirichlet-posterior vs base-rate ratio
           gives each fault's prior multiplier. More confirmations of a fault here make the engine expect it
           more in THIS housing stock. Safety verdicts are independent of this.
@@ -417,24 +419,19 @@ function LearnedModel() {
 
   return (
     <HudPanel>
-      <HudLabel label="Learned Model" sub="Bayesian console" />
-      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 12px", lineHeight: 1.6 }}>
+      <style>{LEARNED_MODEL_STYLES}</style>
+      <SectionHeader label="Learned Model" sub="Bayesian console" />
+      {/* prose: sans for readability */}
+      <p style={{ color: C.dim, fontSize: 12, fontFamily: sans, margin: "0 0 12px", lineHeight: 1.6 }}>
         Confirmed ground truths are modeled as multinomial counts; a Dirichlet-posterior vs base-rate ratio
         gives each fault's prior multiplier. More confirmations of a fault here make the engine expect it
         more in THIS housing stock. Safety verdicts are independent of this.
       </p>
 
-      {/* Column header */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 52px 58px 100px",
-        gap: 6,
-        padding: "4px 0 6px",
-        borderBottom: `1px solid ${HUD.lineHi}`,
-        marginBottom: 10,
-      }}>
+      {/* Column header — hidden on small phones via CSS */}
+      <div className="oi-lm-header" style={{ borderBottom: `1px solid ${HUD.lineHi}`, marginBottom: 10 }}>
         {["FAULT", "CONF.", "BASE%", "MULTIPLIER ×1.0"].map((h) => (
-          <span key={h} style={{ color: HUD.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>{h}</span>
+          <span key={h} style={{ color: C.dim, fontSize: 10, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>{h}</span>
         ))}
       </div>
 
@@ -450,27 +447,27 @@ function LearnedModel() {
 
           return (
             <div key={id} className="oi-lift" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 52px 58px 100px",
-                gap: 6,
-                alignItems: "center",
-              }}>
-                <span style={{ fontFamily: mono, fontSize: 11, color, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {/* Responsive row: desktop grid / phone flex-wrap */}
+              <div className="oi-lm-row">
+                <span className="lm-name" style={{ fontFamily: mono, fontSize: 11, color, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {name}
                 </span>
-                <AnimatedNumber
-                  value={count}
-                  decimals={0}
-                  style={{ fontFamily: mono, fontSize: 12, color: C.text, textAlign: "right", fontWeight: 700 }}
-                />
-                <AnimatedNumber
-                  value={baseFreqPct}
-                  decimals={1}
-                  suffix="%"
-                  style={{ fontFamily: mono, fontSize: 11, color: C.dimmer, textAlign: "right" }}
-                />
-                <span style={{
+                <span className="lm-conf" style={{ textAlign: "right" }}>
+                  <AnimatedNumber
+                    value={count}
+                    decimals={0}
+                    style={{ fontFamily: mono, fontSize: 12, color: C.text, fontWeight: 700 }}
+                  />
+                </span>
+                <span className="lm-base" style={{ textAlign: "right" }}>
+                  <AnimatedNumber
+                    value={baseFreqPct}
+                    decimals={1}
+                    suffix="%"
+                    style={{ fontFamily: mono, fontSize: 11, color: C.dim }}
+                  />
+                </span>
+                <span className="lm-mult" style={{
                   fontFamily: mono, fontSize: 11, fontWeight: 800, textAlign: "right",
                   color: multiplier > 1.05 ? C.amber : multiplier < 0.95 ? C.blue : C.dim,
                 }}>
@@ -535,13 +532,13 @@ function ConfusionSummary({ rows }: { rows: FeedbackRow[] }) {
 
   return (
     <HudPanel className="oi-stagger" style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      <HudLabel label="Feedback Summary" />
+      <SectionHeader label="Feedback Summary" />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
         <StatReadout label="TOTAL" value={stats.total} color={C.text} />
         <StatReadout label="HITS" value={stats.hits} color={C.good} />
         <StatReadout label="CORRECTIONS" value={stats.corrections} color={C.bad} />
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dimmer, letterSpacing: 1 }}>ACCURACY</span>
+          <span style={{ fontFamily: mono, fontSize: 10, color: C.dim, letterSpacing: 1 }}>ACCURACY</span>
           <AnimatedNumber
             value={stats.accuracy}
             decimals={1}
@@ -550,12 +547,12 @@ function ConfusionSummary({ rows }: { rows: FeedbackRow[] }) {
           />
         </div>
         {stats.topPair && (
-          <span style={{ fontFamily: mono, fontSize: 10, color: C.dimmer, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            <span style={{ color: HUD.dimmer, letterSpacing: 1, fontSize: 9 }}>TOP MIS-PRED</span>
+          <span style={{ fontFamily: mono, fontSize: 10, color: C.dim, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            <span style={{ color: C.dim, letterSpacing: 1, fontSize: 10 }}>TOP MIS-PRED</span>
             <Pill color={FAULTS[stats.topPair.from]?.color ?? C.dim}>{faultLabel(stats.topPair.from)}</Pill>
-            <span style={{ color: C.dimmer }}>→</span>
+            <span style={{ color: C.dim }}>→</span>
             <Pill color={FAULTS[stats.topPair.to]?.color ?? C.dim}>{faultLabel(stats.topPair.to)}</Pill>
-            <span style={{ color: C.dimmer }}>({stats.topPair.n}×)</span>
+            <span style={{ color: C.dim }}>({stats.topPair.n}×)</span>
           </span>
         )}
       </div>
@@ -566,7 +563,7 @@ function ConfusionSummary({ rows }: { rows: FeedbackRow[] }) {
 function StatReadout({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
-      <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dimmer, letterSpacing: 1 }}>{label}</span>
+      <span style={{ fontFamily: mono, fontSize: 10, color: C.dim, letterSpacing: 1 }}>{label}</span>
       <span style={{ fontFamily: mono, fontSize: 16, fontWeight: 800, color, lineHeight: 1 }}>{value}</span>
     </div>
   );
@@ -594,23 +591,20 @@ export function LearningView() {
     <div style={{ padding: "14px 12px", display: "flex", flexDirection: "column", gap: 14 }}>
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className={rm ? undefined : "oi-fadeup"}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <span style={{ color: HUD.cyan, fontSize: 8 }}>◆</span>
-          <span style={{ fontFamily: mono, fontSize: 9, color: HUD.cyan, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" as const }}>
-            Active Learning
-          </span>
-        </div>
+        <SectionHeader label="Active Learning" />
         <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 800, color: C.text, lineHeight: 1.2 }}>
           Ground-Truth Calibration
         </h2>
-        <p style={{ margin: "0", fontSize: 11, color: C.dim, fontFamily: mono, lineHeight: 1.6 }}>
+        {/* prose: sans for the description paragraph */}
+        <p style={{ margin: "0", fontSize: 12, color: C.dim, fontFamily: sans, lineHeight: 1.6 }}>
           Each confirmed diagnosis nudges the Bayesian engine's per-fault priors
           (multipliers clamped 0.3–5×) so it learns the fault mix of this specific
           home's era, wiring, and environment — entirely offline.
         </p>
-        {accuracyHistory.length >= 2 && (
+        {/* Accuracy trend sparkline — suppressed under reduced-motion */}
+        {!rm && accuracyHistory.length >= 2 && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-            <span style={{ fontFamily: mono, fontSize: 10, color: C.dimmer, letterSpacing: 1 }}>ACCURACY TREND</span>
+            <span style={{ fontFamily: mono, fontSize: 10, color: C.dim, letterSpacing: 1 }}>ACCURACY TREND</span>
             <Sparkline data={accuracyHistory} width={120} height={28} color={HUD.cyan} />
           </div>
         )}
@@ -630,7 +624,7 @@ export function LearningView() {
 
       {/* ── Feedback log ────────────────────────────────────────────────── */}
       <HudPanel>
-        <HudLabel label="Feedback Log" />
+        <SectionHeader label="Feedback Log" />
         <FeedbackLog onLoaded={setFeedbackRows} />
       </HudPanel>
     </div>

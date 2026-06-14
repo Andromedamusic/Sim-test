@@ -23,7 +23,7 @@ export function RoomHeatmap({ floors, roomName, floorName }: Props) {
     return (
       <div
         style={{
-          color: C.dimmer,
+          color: C.dim,
           fontSize: 11,
           fontFamily: mono,
           padding: "14px 0",
@@ -85,7 +85,7 @@ export function RoomHeatmap({ floors, roomName, floorName }: Props) {
                 style={{
                   color: flColor,
                   fontFamily: mono,
-                  fontSize: 9,
+                  fontSize: 10,
                   fontWeight: 800,
                   letterSpacing: 1.2,
                   border: `1px solid ${flColor}44`,
@@ -99,9 +99,9 @@ export function RoomHeatmap({ floors, roomName, floorName }: Props) {
               {/* risk score */}
               <span
                 style={{
-                  color: HUD.dimmer,
+                  color: HUD.dim,
                   fontFamily: mono,
-                  fontSize: 9,
+                  fontSize: 10,
                   letterSpacing: 0.5,
                 }}
               >
@@ -232,8 +232,8 @@ function RoomTile({
         {/* outlet + unmeasured counts */}
         <div
           style={{
-            color: C.dimmer,
-            fontSize: 9.5,
+            color: C.dim,
+            fontSize: 10,
             fontFamily: mono,
             lineHeight: 1.5,
           }}

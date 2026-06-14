@@ -1,6 +1,6 @@
 import React from "react";
-import { C, HUD, mono, glow } from "../theme";
-import { Card } from "../components";
+import { C, HUD, mono, sans, glow } from "../theme";
+import { Card, SectionHeader } from "../components";
 import { useReducedMotion } from "../anim";
 import { Bracket } from "../hud/Bracket";
 
@@ -82,34 +82,6 @@ const BAYES_LOOP: BayesStage[] = [
   { stage: "Next-best-test", desc: "argmax expected info gain." },
 ];
 
-/** HUD section header: cyan diamond tick + letter-spaced mono label. */
-function HudLabel({ text }: { text: string }) {
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 7,
-      margin: "12px 0 7px",
-      color: HUD.cyan,
-      fontSize: 9,
-      fontFamily: mono,
-      fontWeight: 800,
-      letterSpacing: 2,
-    }}>
-      <span style={{
-        width: 5,
-        height: 5,
-        background: HUD.cyan,
-        boxShadow: glow(HUD.cyan, 0.7),
-        transform: "rotate(45deg)",
-        flexShrink: 0,
-        display: "inline-block",
-      }} />
-      {text}
-    </div>
-  );
-}
-
 export function ReferenceView() {
   const reduced = useReducedMotion();
 
@@ -119,9 +91,9 @@ export function ReferenceView() {
       {/* ── Card 1: Artifact Physics ── */}
       <Card
         title="ARTIFACT PHYSICS — WHAT FOOLS A MULTIMETER"
-        style={{ flex: "1 1 280px", minWidth: 280 }}
+        style={{ flex: "1 1 280px", minWidth: "min(280px,100%)" }}
       >
-        <HudLabel text="MEASUREMENT ARTIFACTS" />
+        <SectionHeader label="MEASUREMENT ARTIFACTS" style={{ margin: "6px 0 10px" }} />
         <div
           className={reduced ? "" : "oi-stagger"}
           style={{ display: "flex", flexDirection: "column", gap: 0 }}
@@ -137,7 +109,7 @@ export function ReferenceView() {
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                 {/* ▸ tick accent */}
-                <span style={{ color: HUD.cyan, fontSize: 9, fontFamily: mono, flexShrink: 0 }}>▸</span>
+                <span style={{ color: HUD.cyan, fontSize: 10, fontFamily: mono, flexShrink: 0 }}>▸</span>
                 <span style={{
                   color: C.amber,
                   fontFamily: mono,
@@ -151,7 +123,7 @@ export function ReferenceView() {
                 <code style={{
                   color: HUD.cyan,
                   fontFamily: mono,
-                  fontSize: 9,
+                  fontSize: 10,
                   background: HUD.glass,
                   border: `1px solid ${HUD.lineHi}`,
                   borderRadius: 4,
@@ -162,8 +134,8 @@ export function ReferenceView() {
               </div>
               <div style={{
                 color: HUD.dim,
-                fontSize: 10,
-                fontFamily: mono,
+                fontSize: 11,
+                fontFamily: sans,
                 lineHeight: 1.65,
                 paddingLeft: 16,
               }}>
@@ -177,96 +149,100 @@ export function ReferenceView() {
       {/* ── Card 2: Acceptance Thresholds ── */}
       <Card
         title="ACCEPTANCE THRESHOLDS"
-        style={{ flex: "1 1 280px", minWidth: 280 }}
+        style={{ flex: "1 1 280px", minWidth: "min(280px,100%)" }}
       >
-        <HudLabel text="PASS / FAIL MATRIX" />
+        <SectionHeader label="PASS / FAIL MATRIX" style={{ margin: "6px 0 10px" }} />
 
-        {/* Table header */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr",
-          gap: 4,
-          padding: "4px 6px 6px",
-          borderBottom: `1px solid ${HUD.lineHi}`,
-          background: HUD.glass,
-          borderRadius: "4px 4px 0 0",
-          marginBottom: 1,
-        }}>
-          {["Param", "PASS", "FAIL", "Std"].map((h, idx) => (
-            <span key={h} style={{
-              color: idx === 1 ? C.good
-                   : idx === 2 ? C.bad
-                   : HUD.dimmer,
-              fontSize: 9,
-              fontFamily: mono,
-              fontWeight: 800,
-              letterSpacing: 1,
-            }}>
-              {h}
-            </span>
-          ))}
-        </div>
-
-        {/* Table rows */}
-        <div
-          className={reduced ? "" : "oi-stagger"}
-          style={{ display: "flex", flexDirection: "column" }}
-        >
-          {THRESHOLDS.map((row, i) => (
-            <div
-              key={i}
-              className="oi-lift"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr",
-                gap: 4,
-                padding: "5px 4px",
-                borderBottom: i < THRESHOLDS.length - 1 ? `1px solid ${HUD.line}` : "none",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ color: HUD.text, fontSize: 10, fontFamily: mono }}>{row.param}</span>
-              <span style={{
-                color: C.good,
+        {/* Scrollable wrapper prevents horizontal overflow on narrow screens */}
+        <div style={{ overflowX: "auto" }}>
+          {/* Table header */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr",
+            gap: 4,
+            padding: "4px 6px 6px",
+            borderBottom: `1px solid ${HUD.lineHi}`,
+            background: HUD.glass,
+            borderRadius: "4px 4px 0 0",
+            marginBottom: 1,
+            minWidth: 280,
+          }}>
+            {["Param", "PASS", "FAIL", "Std"].map((h, idx) => (
+              <span key={h} style={{
+                color: idx === 1 ? C.good
+                     : idx === 2 ? C.bad
+                     : HUD.dim,
                 fontSize: 10,
                 fontFamily: mono,
-                fontWeight: 700,
-                textShadow: glow(C.good, 0.25),
+                fontWeight: 800,
+                letterSpacing: 1,
               }}>
-                {row.pass}
+                {h}
               </span>
-              <span style={{
-                color: C.bad,
-                fontSize: 10,
-                fontFamily: mono,
-                fontWeight: 700,
-                textShadow: glow(C.bad, 0.2),
-              }}>
-                {row.fail}
-              </span>
-              <span style={{
-                color: HUD.dimmer,
-                fontSize: 9,
-                fontFamily: mono,
-                background: HUD.glass,
-                border: `1px solid ${HUD.line}`,
-                borderRadius: 3,
-                padding: "1px 5px",
-                display: "inline-block",
-              }}>
-                {row.std}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Table rows */}
+          <div
+            className={reduced ? "" : "oi-stagger"}
+            style={{ display: "flex", flexDirection: "column", minWidth: 280 }}
+          >
+            {THRESHOLDS.map((row, i) => (
+              <div
+                key={i}
+                className="oi-lift"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.4fr 1fr 1fr 0.8fr",
+                  gap: 4,
+                  padding: "5px 4px",
+                  borderBottom: i < THRESHOLDS.length - 1 ? `1px solid ${HUD.line}` : "none",
+                  alignItems: "center",
+                }}
+              >
+                <span style={{ color: HUD.text, fontSize: 10, fontFamily: mono }}>{row.param}</span>
+                <span style={{
+                  color: C.good,
+                  fontSize: 10,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  textShadow: glow(C.good, 0.25),
+                }}>
+                  {row.pass}
+                </span>
+                <span style={{
+                  color: C.bad,
+                  fontSize: 10,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  textShadow: glow(C.bad, 0.2),
+                }}>
+                  {row.fail}
+                </span>
+                <span style={{
+                  color: HUD.dim,
+                  fontSize: 10,
+                  fontFamily: mono,
+                  background: HUD.glass,
+                  border: `1px solid ${HUD.line}`,
+                  borderRadius: 3,
+                  padding: "1px 5px",
+                  display: "inline-block",
+                }}>
+                  {row.std}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 
       {/* ── Card 3: Bayesian Loop ── */}
       <Card
         title="THE BAYESIAN LOOP"
-        style={{ flex: "1 1 260px", minWidth: 260 }}
+        style={{ flex: "1 1 260px", minWidth: "min(260px,100%)" }}
       >
-        <HudLabel text="INFERENCE PIPELINE" />
+        <SectionHeader label="INFERENCE PIPELINE" style={{ margin: "6px 0 10px" }} />
 
         {/* Bracketed pipeline panel */}
         <div style={{ position: "relative", paddingTop: 4 }}>
@@ -301,7 +277,7 @@ export function ReferenceView() {
                   color: HUD.cyan,
                   fontFamily: mono,
                   fontWeight: 800,
-                  fontSize: 9,
+                  fontSize: 10,
                   boxShadow: `0 0 0 1px ${HUD.cyan}20`,
                 }}>
                   {i + 1}
@@ -314,7 +290,7 @@ export function ReferenceView() {
                     gap: 5,
                     marginBottom: 2,
                   }}>
-                    <span style={{ color: HUD.cyan, fontSize: 9, fontFamily: mono }}>▸</span>
+                    <span style={{ color: HUD.cyan, fontSize: 10, fontFamily: mono }}>▸</span>
                     <span style={{
                       color: C.amber,
                       fontFamily: mono,
@@ -325,7 +301,7 @@ export function ReferenceView() {
                       {entry.stage}
                     </span>
                   </div>
-                  <div style={{ color: HUD.dim, fontFamily: mono, fontSize: 10, lineHeight: 1.55, paddingLeft: 14 }}>
+                  <div style={{ color: HUD.dim, fontFamily: sans, fontSize: 11, lineHeight: 1.55, paddingLeft: 14 }}>
                     {entry.desc}
                   </div>
                 </div>

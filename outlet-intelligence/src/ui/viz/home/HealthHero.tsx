@@ -101,7 +101,7 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                 style={{
                   marginLeft: 8,
                   color: C.danger,
-                  fontSize: 9,
+                  fontSize: 10,
                   fontFamily: mono,
                   fontWeight: 800,
                   letterSpacing: 1.5,
@@ -168,8 +168,8 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
               >
                 <span
                   style={{
-                    color: HUD.dimmer,
-                    fontSize: 8.5,
+                    color: HUD.dim,
+                    fontSize: 10,
                     fontFamily: mono,
                     letterSpacing: 1.5,
                   }}
@@ -227,8 +227,8 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                 <div style={{ flex: 1 }}>
                   <div
                     style={{
-                      color: HUD.dimmer,
-                      fontSize: 8.5,
+                      color: HUD.dim,
+                      fontSize: 10,
                       fontFamily: mono,
                       letterSpacing: 1.5,
                       marginBottom: 5,
@@ -249,7 +249,7 @@ export function HealthHero({ health, onGoMap, placed, measured }: Props) {
                     <AnimatedNumber value={measured} />
                     <span
                       style={{
-                        color: C.dimmer,
+                        color: C.dim,
                         fontSize: 15,
                         fontWeight: 400,
                       }}
@@ -421,8 +421,8 @@ function TelemetryChip({
     >
       <div
         style={{
-          color: HUD.dimmer,
-          fontSize: 7.5,
+          color: HUD.dim,
+          fontSize: 10,
           fontFamily: mono,
           letterSpacing: 1.5,
           marginBottom: 3,

@@ -15,7 +15,16 @@ interface Props {
 }
 
 export function CriticTribunalViz({ critics }: Props) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // Auto-expand only the decisive/winning critic (highest confidence), or none
+  const decisiveCritic = critics.reduce<Critic | null>((best, c) => {
+    if (!best) return c;
+    return (c.confidence ?? 0) > (best.confidence ?? 0) ? c : best;
+  }, null);
+  const autoExpand = decisiveCritic && (decisiveCritic.confidence ?? 0) >= 0.7
+    ? decisiveCritic.id
+    : null;
+
+  const [expanded, setExpanded] = useState<string | null>(autoExpand);
   const reduced = useReducedMotion();
 
   const toggle = (id: string) => setExpanded((prev) => (prev === id ? null : id));
@@ -24,10 +33,10 @@ export function CriticTribunalViz({ critics }: Props) {
     <GlowCard style={{ padding: "14px 14px" }}>
       {/* Section header */}
       <div style={{
-        color: C.dimmer,
-        fontSize: 9,
+        color: C.dim,
+        fontSize: 10,
         fontFamily: mono,
-        letterSpacing: 2,
+        letterSpacing: 1.5,
         fontWeight: 700,
         marginBottom: 14,
         display: "flex",
@@ -115,7 +124,7 @@ export function CriticTribunalViz({ critics }: Props) {
                   }}>
                     {c.name}
                   </div>
-                  <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 7.5, lineHeight: 1.3, marginTop: 1 }}>
+                  <div style={{ color: C.dim, fontFamily: mono, fontSize: 10, lineHeight: 1.3, marginTop: 1 }}>
                     {c.role}
                   </div>
                 </div>
@@ -128,7 +137,7 @@ export function CriticTribunalViz({ critics }: Props) {
                   background: c.color + "22",
                   color: c.color,
                   fontFamily: mono,
-                  fontSize: 7.5,
+                  fontSize: 10,
                   fontWeight: 900,
                   padding: "2px 7px",
                   borderRadius: 5,
@@ -142,7 +151,7 @@ export function CriticTribunalViz({ critics }: Props) {
               {/* Veto list */}
               {hasVeto && (
                 <div style={{ marginTop: 5 }}>
-                  <div style={{ color: C.bad, fontFamily: mono, fontSize: 7.5, fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>
+                  <div style={{ color: C.bad, fontFamily: mono, fontSize: 10, fontWeight: 700, marginBottom: 3, letterSpacing: 0.5 }}>
                     VETOED:
                   </div>
                   {c.veto!.map((v) => (

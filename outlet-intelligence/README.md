@@ -7,7 +7,11 @@ Recursive home electrical outlet diagnostic intelligence — measure outlets wit
 ## Overview
 
 - **Per-outlet diagnosis** — enter voltage readings (VHN, VHG, VNG), continuity, behavioral flags. The engine produces a ranked posterior across 16 fault hypotheses, a safety verdict, and the next best measurement to take, shown on an animated instrument cluster (confidence gauge, live 6-critic tribunal, animated NEMA outlet-physics SVG with phantom-voltage / fritting / reversed-polarity visualization).
-- **Spatial floor-plan editor** — draw rectangular rooms, place outlets on walls (touch + mouse), tap to measure; outlet rings are colour-coded by verdict, with animated cross-room **circuit current-flow traces** and a room heatmap.
+- **Spatial floor-plan editor** — draw rectangular **or polygon / L-shaped** rooms (draggable vertices), place outlets on walls/edges (touch + mouse), tap to measure; outlet rings are colour-coded by verdict, with animated cross-room **circuit current-flow traces** and a room heatmap.
+- **Multi-home** — manage several properties (create / switch / rename / delete) from the header switcher.
+- **Printable inspection report** — a Report tab renders a whole-home report and prints to PDF via the browser (offline, no dependency).
+- **Cloud sync (optional)** — provider-agnostic: PUT/GET one JSON per home to any endpoint you control (S3 pre-signed URL, a small server, a Worker); last-write-wins; degrades gracefully offline. No bundled backend.
+- **Hardware ingestion** — manual entry is the always-available default; real BLE/serial parsers (Nordic-UART ASCII + float-characteristic decoders) stream a live reading into a chosen field on supported browsers (not iOS Safari).
 - **Whole-home intelligence rollup** — room → floor → home → circuit health (safety-asymmetric: one lethal outlet pins the home to RED), systemic-pattern detection (shared-neutral, multi-open-ground, reversed-run, era cohort), and a prioritized remediation list.
 - **Breaker panel + circuit tracer** — a visual panel board; flip a breaker, tap the outlets that lost power to auto-assign circuits.
 - **Active learning** — after an outlet is opened, record the real fault; the engine recalibrates local priors (decaying reinforcement) and surfaces calibration in a Learning view.
@@ -44,11 +48,15 @@ src/
   ai/          Optional AI second-opinion (network-gated, gracefully degrades).
   adapters/    Bridge types for export/import and external integrations.
 
-dyno/          Vitest harness (68 tests): deterministic golden-value tests for
+dyno/          Vitest harness (82 tests): deterministic golden-value tests for
                the 16 fault signatures, the LIVE_CASE, 100% lethal safety-recall
                across partial measurements, calibration/top-1, engine hardening,
-               plus jsdom app-runtime integration tests (mounts the real app,
-               renders every tab, drives the store) and a render smoke test.
+               polygon geometry, Dirichlet active-learning (incl. lethal-safety
+               under mislearned priors), export/import round-trip, plus jsdom
+               app-runtime integration tests (mounts the real app, renders every
+               tab, multi-home, polygon render) and a render smoke test.
+
+sync/          Provider-agnostic cloud sync (configurable HTTP endpoint).
 
 schema/        home-export.schema.json — JSON Schema (draft 2020-12) for the
                HomeExportDoc wire format.

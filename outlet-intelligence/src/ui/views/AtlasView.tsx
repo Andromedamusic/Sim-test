@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { FAULTS, FK, PHYSICS } from "../../core";
 import type { Fault } from "../../core";
-import { C, mono } from "../theme";
+import { C, HUD, mono, glow } from "../theme";
 import { Card, SubH, Row, Tag } from "../components";
+import { RadialGauge, Sparkline, useReducedMotion } from "../anim";
+import { Bracket } from "../hud/Bracket";
 
 const SIG_ROWS: Array<{ key: keyof Fault["sig"]; label: string }> = [
   { key: "VHN", label: "V H→N" },
@@ -23,127 +25,107 @@ function fmtReading(key: keyof Fault["sig"], mean: number): string {
   return mean.toFixed(1);
 }
 
-/**
- * Sparkline: a tiny bar chart of sig means [VHN, VHG, VNG] relative to 120V.
- * Gives a quick fingerprint of each fault's voltage signature at a glance.
- */
+/** HUD section header: cyan diamond tick + letter-spaced mono label. */
+function HudLabel({ text }: { text: string }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 7,
+      margin: "12px 0 6px",
+      color: HUD.cyan,
+      fontSize: 9,
+      fontFamily: mono,
+      fontWeight: 800,
+      letterSpacing: 2,
+    }}>
+      <span style={{
+        width: 6,
+        height: 6,
+        background: HUD.cyan,
+        boxShadow: glow(HUD.cyan, 0.7),
+        transform: "rotate(45deg)",
+        flexShrink: 0,
+        display: "inline-block",
+      }} />
+      {text}
+    </div>
+  );
+}
+
+/** Sig sparkline redrawn from the three voltage keys. */
 function SigSparkline({ sig }: { sig: Fault["sig"] }) {
-  const slots: Array<{ key: keyof Fault["sig"]; max: number; color: string }> = [
-    { key: "VHN", max: 120, color: C.amber },
-    { key: "VHG", max: 120, color: C.blue },
-    { key: "VNG", max: 120, color: C.warn },
-  ];
+  const vals = [sig.VHN[0], sig.VHG[0], sig.VNG[0]];
   return (
-    <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 16, flexShrink: 0 }}>
-      {slots.map(({ key, max, color }) => {
-        const mean = sig[key][0];
-        const pct = Math.min(mean / max, 1);
-        return (
-          <div
-            key={key}
-            title={`${key}: ${mean.toFixed(0)}V`}
-            style={{
-              width: 5,
-              height: Math.max(2, pct * 16),
-              background: color,
-              borderRadius: 2,
-              opacity: 0.85,
-              transition: "height 0.25s ease",
-            }}
-          />
-        );
-      })}
-    </div>
+    <Sparkline
+      data={vals}
+      width={36}
+      height={16}
+      color={HUD.cyan}
+      fill
+    />
   );
 }
-
-/**
- * Radial severity gauge in the detail panel.
- * Draws a partial arc coloured by severity (0=green, 10=red).
- */
-function SeverityGauge({ sev, color }: { sev: number; color: string }) {
-  const SIZE = 80;
-  const CX = SIZE / 2, CY = SIZE / 2;
-  const R = 30;
-  const GAP = 60; // degrees gap at bottom
-  const START_DEG = 90 + GAP / 2;
-  const ARC_DEG = 360 - GAP;
-
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const px = (r: number, deg: number) => CX + r * Math.cos(toRad(deg));
-  const py = (r: number, deg: number) => CY + r * Math.sin(toRad(deg));
-
-  const END_DEG = START_DEG + ARC_DEG;
-  const bgPath = `M ${px(R, START_DEG)} ${py(R, START_DEG)} A ${R} ${R} 0 1 1 ${px(R, END_DEG)} ${py(R, END_DEG)}`;
-
-  const fillDeg = ARC_DEG * (sev / 10);
-  const fillEnd = START_DEG + fillDeg;
-  const fgPath = fillDeg > 1
-    ? `M ${px(R, START_DEG)} ${py(R, START_DEG)} A ${R} ${R} 0 ${fillDeg > 180 ? 1 : 0} 1 ${px(R, fillEnd)} ${py(R, fillEnd)}`
-    : "";
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ width: SIZE, height: SIZE }}>
-        <path d={bgPath} fill="none" stroke={C.border} strokeWidth={6} strokeLinecap="round" />
-        {fgPath && (
-          <path
-            d={fgPath}
-            fill="none"
-            stroke={color}
-            strokeWidth={6}
-            strokeLinecap="round"
-            style={{ transition: "stroke 0.4s" }}
-          />
-        )}
-        <text x={CX} y={CY + 2} textAnchor="middle" fill={color} fontSize={18} fontWeight={900} fontFamily={mono}>
-          {sev}
-        </text>
-        <text x={CX} y={CY + 14} textAnchor="middle" fill={C.dimmer} fontSize={7} fontFamily={mono}>
-          /10
-        </text>
-      </svg>
-      <span style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginTop: -4 }}>SEVERITY</span>
-    </div>
-  );
-}
-
-/** Inline keyframes injected once. */
-const ATLAS_STYLES = `
-@keyframes oi-pulse {
-  0%,100%{opacity:1}
-  50%{opacity:0.45}
-}
-@keyframes oi-popin {
-  0%   { opacity:0; transform:scale(0.95) translateY(6px); }
-  60%  { opacity:1; transform:scale(1.01) translateY(-1px); }
-  100% { opacity:1; transform:scale(1)    translateY(0); }
-}
-`;
 
 const sortedFK = [...FK].sort((a, b) => FAULTS[b].sev - FAULTS[a].sev);
 
 export function AtlasView() {
   const [selected, setSelected] = useState<string>(sortedFK[0]);
+  const reduced = useReducedMotion();
   const f = FAULTS[selected];
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 14, padding: 16, boxSizing: "border-box", width: "100%" }}>
-      <style>{ATLAS_STYLES}</style>
 
-      {/* ── Left: fault list ── */}
+      {/* ── Left: fault roster ── */}
       <div style={{
         minWidth: 240,
         flex: "1 1 240px",
-        background: C.panel,
-        border: `1px solid ${C.border}`,
+        background: HUD.panel,
+        border: `1px solid ${HUD.line}`,
         borderRadius: 12,
         overflow: "hidden",
+        position: "relative",
       }}>
-        <div style={{ padding: "10px 13px 6px", color: C.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1, borderBottom: `1px solid ${C.border}` }}>
-          FAULT LIBRARY — {sortedFK.length} hypotheses
+        <Bracket color={HUD.cyan} size={10} inset={4} weight={1.5} opacity={0.5} />
+
+        {/* Roster header */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "10px 13px 8px",
+          borderBottom: `1px solid ${HUD.line}`,
+        }}>
+          <span style={{
+            width: 5,
+            height: 5,
+            background: HUD.cyan,
+            boxShadow: glow(HUD.cyan, 0.7),
+            transform: "rotate(45deg)",
+            flexShrink: 0,
+          }} />
+          <span style={{ color: HUD.cyan, fontSize: 9, fontFamily: mono, fontWeight: 800, letterSpacing: 2, flex: 1 }}>
+            FAULT LIBRARY
+          </span>
+          <span style={{
+            color: HUD.dim,
+            fontSize: 9,
+            fontFamily: mono,
+            background: HUD.glass,
+            border: `1px solid ${HUD.lineHi}`,
+            borderRadius: 4,
+            padding: "1px 6px",
+          }}>
+            {sortedFK.length}
+          </span>
         </div>
-        <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 180px)" }}>
+
+        {/* Roster list */}
+        <div
+          className={reduced ? "" : "oi-stagger"}
+          style={{ overflowY: "auto", maxHeight: "calc(100vh - 180px)" }}
+        >
           {sortedFK.map((id) => {
             const fault = FAULTS[id];
             const isActive = id === selected;
@@ -151,6 +133,7 @@ export function AtlasView() {
             return (
               <div
                 key={id}
+                className="oi-lift"
                 onClick={() => setSelected(id)}
                 style={{
                   display: "flex",
@@ -158,36 +141,56 @@ export function AtlasView() {
                   gap: 10,
                   padding: "8px 13px",
                   cursor: "pointer",
-                  borderBottom: `1px solid ${C.border}`,
-                  background: isActive ? C.panel2 : "transparent",
-                  borderLeft: isActive ? `3px solid ${C.amber}` : "3px solid transparent",
-                  transition: "background 0.1s",
-                  // Lethal faults pulse to draw attention
-                  animation: isLethal ? "oi-pulse 2s ease-in-out infinite" : "none",
+                  borderBottom: `1px solid ${HUD.line}`,
+                  background: isActive
+                    ? `linear-gradient(90deg,${HUD.cyan}12,transparent)`
+                    : "transparent",
+                  borderLeft: isActive
+                    ? `2px solid ${HUD.cyan}`
+                    : "2px solid transparent",
+                  transition: "background 0.15s, border-color 0.15s",
+                  boxShadow: isActive ? `inset 0 0 0 1px ${HUD.cyan}18` : "none",
                 }}
               >
                 {/* Severity chip */}
                 <span style={{
-                  background: fault.color,
-                  color: "#0A0A0C",
+                  background: fault.color + "22",
+                  color: fault.color,
+                  border: `1px solid ${fault.color}66`,
                   fontFamily: mono,
                   fontWeight: 800,
                   fontSize: 10,
-                  borderRadius: 5,
+                  borderRadius: 4,
                   padding: "2px 6px",
                   minWidth: 22,
                   textAlign: "center",
                   flexShrink: 0,
+                  boxShadow: isActive ? glow(fault.color, 0.35) : "none",
                 }}>
                   {fault.sev}
                 </span>
-                <span style={{ color: isActive ? C.text : C.dim, fontSize: 11, fontFamily: mono, flex: 1, lineHeight: 1.4 }}>
+
+                <span style={{
+                  color: isActive ? HUD.text : HUD.dim,
+                  fontSize: 11,
+                  fontFamily: mono,
+                  flex: 1,
+                  lineHeight: 1.4,
+                  letterSpacing: 0.2,
+                }}>
                   {fault.name}
                 </span>
-                {/* Voltage signature sparkline */}
+
                 <SigSparkline sig={fault.sig} />
-                {fault.lethal && (
-                  <span style={{ fontSize: 12 }} title="Lethal">☠</span>
+
+                {isLethal && (
+                  <span
+                    className={reduced ? "" : "oi-pulse"}
+                    title="Lethal"
+                    style={{ fontSize: 11, color: C.danger }}
+                  >
+                    ☠
+                  </span>
                 )}
               </div>
             );
@@ -195,43 +198,103 @@ export function AtlasView() {
         </div>
       </div>
 
-      {/* ── Right: detail panel — entrance animation keyed on selected fault ── */}
+      {/* ── Right: fault dossier ── */}
       <div
         key={selected}
-        style={{
-          minWidth: 300,
-          flex: "2 1 300px",
-          animation: "oi-popin 0.22s ease-out both",
-        }}
+        className={reduced ? "" : "oi-popin"}
+        style={{ minWidth: 300, flex: "2 1 300px" }}
       >
-        <Card title={`FAULT — ${f.id.toUpperCase()}`}>
-          {/* Name + tags + severity gauge side by side */}
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: C.text, fontSize: 15, fontFamily: mono, fontWeight: 700, marginBottom: 7 }}>
-                {f.name}
+        <Card title={`FAULT DOSSIER — ${f.id.toUpperCase()}`}>
+          {/* Hero: name + severity gauge, bracketed */}
+          <div style={{ position: "relative", padding: "12px 0 10px" }}>
+            <Bracket color={HUD.cyan} size={8} inset={-2} weight={1} opacity={0.4} />
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  color: HUD.text,
+                  fontSize: 15,
+                  fontFamily: mono,
+                  fontWeight: 700,
+                  marginBottom: 8,
+                  letterSpacing: 0.3,
+                }}>
+                  {f.name}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  <Tag color={f.color} text={`SEV ${f.sev}/10`} />
+                  {f.lethal && <Tag color={C.danger} text="LETHAL" />}
+                  {f.energizedGnd && <Tag color={C.danger} text="ENERGIZED GND" />}
+                  {f.defeatsTester && <Tag color={C.bad} text="DEFEATS 3-LIGHT" />}
+                  <Tag color={HUD.cyan} text={`NEC ${f.nec}`} />
+                </div>
               </div>
-              <div>
-                <Tag color={f.color} text={`Severity ${f.sev}/10`} />
-                {f.lethal && <Tag color={C.danger} text="LETHAL" />}
-                {f.energizedGnd && <Tag color={C.danger} text="ENERGIZED GROUND" />}
-                {f.defeatsTester && <Tag color={C.bad} text="DEFEATS 3-LIGHT TESTER" />}
-                <Tag color={C.blue} text={`NEC ${f.nec}`} />
+
+              {/* Shared RadialGauge from anim */}
+              <div style={{ flexShrink: 0 }}>
+                <RadialGauge
+                  value={f.sev}
+                  max={10}
+                  size={88}
+                  thickness={8}
+                  color={f.color}
+                  track={HUD.line}
+                  label={String(f.sev)}
+                  sublabel="SEVERITY"
+                  glow
+                />
               </div>
             </div>
-            {/* Radial severity gauge */}
-            <SeverityGauge sev={f.sev} color={f.color} />
           </div>
 
-          <SubH text="DISCRIMINATOR & REMEDY" />
+          {/* Voltage-signature sparkline across the full width */}
+          <HudLabel text="VOLTAGE FINGERPRINT" />
+          <div style={{
+            padding: "8px 0 4px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}>
+            <Sparkline
+              data={[f.sig.VHN[0], f.sig.VHG[0], f.sig.VNG[0], f.sig.VNG[0] * 0.5, f.sig.drop[0]]}
+              width={160}
+              height={32}
+              color={HUD.cyan}
+              fill
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              {[
+                { label: "VHN", val: f.sig.VHN[0], color: C.amber },
+                { label: "VHG", val: f.sig.VHG[0], color: HUD.cyan },
+                { label: "VNG", val: f.sig.VNG[0], color: C.warn },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span style={{ color, fontSize: 12, fontFamily: mono, fontWeight: 700 }}>
+                    {val.toFixed(0)}
+                  </span>
+                  <span style={{ color: HUD.dimmer, fontSize: 8, fontFamily: mono }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Discriminator + Remedy */}
+          <HudLabel text="DISCRIMINATOR &amp; REMEDY" />
           <Row label="Discriminator" val={f.discriminator} />
           <Row label="Remedy" val={f.remedy} />
 
-          <SubH text="SIGNATURE TABLE" />
-          {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, padding: "4px 0", borderBottom: `1px solid ${C.border}`, marginBottom: 2 }}>
+          {/* Signature table */}
+          <HudLabel text="SIGNATURE TABLE" />
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 4,
+            padding: "4px 0 6px",
+            borderBottom: `1px solid ${HUD.line}`,
+          }}>
             {["Reading", "Expected", "±σ"].map((h) => (
-              <span key={h} style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700 }}>{h}</span>
+              <span key={h} style={{ color: HUD.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>
+                {h}
+              </span>
             ))}
           </div>
           {SIG_ROWS.map(({ key, label }) => {
@@ -248,13 +311,13 @@ export function AtlasView() {
                   gridTemplateColumns: "1fr 1fr 1fr",
                   gap: 4,
                   padding: "5px 0",
-                  borderBottom: `1px solid ${C.border}`,
+                  borderBottom: `1px solid ${HUD.line}`,
                   alignItems: "center",
                 }}
               >
-                <span style={{ color: C.dim, fontSize: 10, fontFamily: mono }}>{label}</span>
-                <span style={{ color: C.text, fontSize: 11, fontFamily: mono }}>{expectedStr}</span>
-                <span style={{ color: C.dimmer, fontSize: 10, fontFamily: mono }}>{sigmaStr}</span>
+                <span style={{ color: HUD.dim, fontSize: 10, fontFamily: mono }}>{label}</span>
+                <span style={{ color: HUD.text, fontSize: 11, fontFamily: mono, fontWeight: 600 }}>{expectedStr}</span>
+                <span style={{ color: HUD.dimmer, fontSize: 10, fontFamily: mono }}>{sigmaStr}</span>
               </div>
             );
           })}

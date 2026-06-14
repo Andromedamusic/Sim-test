@@ -8,10 +8,12 @@ import { useStore } from "../../state/store";
 import { type Era, type WireMaterial } from "../../core";
 import { exportHome, downloadJSON, getSetting, setSetting, putHome } from "../../data/storage";
 import { storageEstimate, requestPersistence } from "../../data/db";
-import { C, mono } from "../theme";
+import { C, mono, HUD, glow } from "../theme";
 import { Card, Field, TextInput, Select, SubH } from "../components";
 import { METER_NAMES, METERS } from "../meters";
 import { AdapterPanel } from "../components/AdapterPanel";
+import { useReducedMotion } from "../anim";
+import { Bracket } from "../hud/Bracket";
 
 const ERAS: Era[] = ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"];
 const WIRES: WireMaterial[] = ["Copper", "Aluminum", "Unknown"];
@@ -33,6 +35,99 @@ function relTime(iso: string): string {
   }
 }
 
+// ─── HUD section header ───────────────────────────────────────────────────────
+
+function HudSectionLabel({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+      <span style={{ color: HUD.cyan, fontSize: 8, lineHeight: 1 }}>◆</span>
+      <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.cyan, textTransform: "uppercase" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ─── HUD config panel wrapper ─────────────────────────────────────────────────
+
+function HudPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  const rm = useReducedMotion();
+  return (
+    <div
+      className={rm ? undefined : "oi-fadeup"}
+      style={{
+        position: "relative",
+        background: HUD.panel,
+        border: `1px solid ${HUD.line}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        ...style,
+      }}
+    >
+      <Bracket color={HUD.cyan} size={9} inset={3} weight={1} opacity={0.5} />
+      {children}
+    </div>
+  );
+}
+
+// ─── Styled input helpers ─────────────────────────────────────────────────────
+
+const inputBase: React.CSSProperties = {
+  background: "#060A0F",
+  border: `1px solid ${HUD.line}`,
+  borderRadius: 7,
+  padding: "9px 10px",
+  fontFamily: mono,
+  fontSize: 12,
+  color: HUD.text,
+  width: "100%",
+  boxSizing: "border-box",
+  transition: "border-color .15s, box-shadow .15s",
+  outline: "none",
+};
+
+function FocusInput(props: React.InputHTMLAttributes<HTMLInputElement> & { value: string; onValueChange: (v: string) => void }) {
+  const { onValueChange, ...rest } = props;
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      {...rest}
+      value={props.value}
+      onChange={(e) => onValueChange(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { setFocused(false); rest.onBlur?.(e); }}
+      style={{
+        ...inputBase,
+        borderColor: focused ? HUD.cyan : HUD.line,
+        boxShadow: focused ? glow(HUD.cyan, 0.3) : undefined,
+        ...props.style,
+      }}
+    />
+  );
+}
+
+// ─── Status chip ──────────────────────────────────────────────────────────────
+
+function StatusChip({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
+      background: color + "18",
+      border: `1px solid ${color}44`,
+      borderRadius: 5,
+      padding: "2px 8px",
+      fontFamily: mono,
+      fontSize: 10,
+      fontWeight: 700,
+      color,
+    }}>
+      {children}
+    </span>
+  );
+}
+
 // ─── Cloud Sync Card ──────────────────────────────────────────────────────────
 
 function CloudSyncCard() {
@@ -44,6 +139,8 @@ function CloudSyncCard() {
   const [url, setUrl] = useState(syncConfig?.url ?? "");
   const [token, setToken] = useState(syncConfig?.token ?? "");
   const [saved, setSaved] = useState(false);
+  const [urlFocused, setUrlFocused] = useState(false);
+  const [tokenFocused, setTokenFocused] = useState(false);
 
   // keep local inputs in sync when store changes externally
   useEffect(() => {
@@ -60,35 +157,36 @@ function CloudSyncCard() {
 
   const syncing = syncStatus.state === "syncing";
 
-  const statusNode = (() => {
+  const statusChip = (() => {
     switch (syncStatus.state) {
       case "syncing":
         return (
-          <span style={{ color: C.blue, fontFamily: mono, fontSize: 11 }}>
-            <SpinnerInline /> syncing…
-          </span>
+          <StatusChip color={C.blue}>
+            <SpinnerInline /> SYNCING
+          </StatusChip>
         );
       case "ok":
         return (
-          <span style={{ color: C.good, fontFamily: mono, fontSize: 11 }}>
-            ✓ {syncStatus.message ?? "Synced"}
-            {syncStatus.at ? <span style={{ color: C.dimmer }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
-          </span>
+          <StatusChip color={C.good}>
+            ✓ {syncStatus.message ?? "SYNCED"}
+            {syncStatus.at ? <span style={{ color: C.dimmer, fontWeight: 400 }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
+          </StatusChip>
         );
       case "error":
         return (
-          <span style={{ color: C.bad, fontFamily: mono, fontSize: 11 }}>
-            ✗ {syncStatus.message ?? "Sync failed"}
-          </span>
+          <StatusChip color={C.bad}>
+            ✗ {syncStatus.message ?? "SYNC FAILED"}
+          </StatusChip>
         );
       default:
-        return <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 11 }}>Idle</span>;
+        return <StatusChip color={HUD.dimmer}>IDLE</StatusChip>;
     }
   })();
 
   return (
-    <Card title="CLOUD SYNC (optional)">
-      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 10px", lineHeight: 1.6 }}>
+    <HudPanel>
+      <HudSectionLabel label="Cloud Sync" />
+      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 12px", lineHeight: 1.6 }}>
         Offline-first — sync is entirely optional. When configured, it PUT/GETs one JSON file per home to
         any endpoint you control (S3 pre-signed URL, a small server, a Cloudflare Worker). Last-write-wins
         by timestamp. The deterministic diagnostic engine never needs network access.
@@ -96,10 +194,18 @@ function CloudSyncCard() {
 
       <div style={{ display: "grid", gap: 9 }}>
         <Field label="ENDPOINT URL">
-          <TextInput
+          <input
+            type="text"
             value={url}
-            onChange={setUrl}
             placeholder="https://…/homes/{id}.json"
+            onChange={(e) => setUrl(e.target.value)}
+            onFocus={() => setUrlFocused(true)}
+            onBlur={() => setUrlFocused(false)}
+            style={{
+              ...inputBase,
+              borderColor: urlFocused ? HUD.cyan : HUD.line,
+              boxShadow: urlFocused ? glow(HUD.cyan, 0.3) : undefined,
+            }}
           />
         </Field>
 
@@ -109,16 +215,12 @@ function CloudSyncCard() {
             value={token}
             placeholder="Bearer token or API key"
             onChange={(e) => setToken(e.target.value)}
+            onFocus={() => setTokenFocused(true)}
+            onBlur={() => setTokenFocused(false)}
             style={{
-              background: "#0A0A0E",
-              border: `1px solid ${C.border}`,
-              borderRadius: 7,
-              padding: "9px 10px",
-              fontFamily: mono,
-              fontSize: 12,
-              color: C.text,
-              width: "100%",
-              boxSizing: "border-box",
+              ...inputBase,
+              borderColor: tokenFocused ? HUD.cyan : HUD.line,
+              boxShadow: tokenFocused ? glow(HUD.cyan, 0.3) : undefined,
             }}
           />
         </Field>
@@ -135,14 +237,14 @@ function CloudSyncCard() {
           >
             ⟲ Sync now
           </button>
-          {statusNode}
+          {statusChip}
         </div>
       </div>
 
       <div style={{ marginTop: 10, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
         Leave URL empty to disable cloud sync and clear saved config. Tokens are stored in this browser only.
       </div>
-    </Card>
+    </HudPanel>
   );
 }
 
@@ -158,8 +260,10 @@ function SpinnerInline() {
 export function SettingsView() {
   const { model, importDoc, reloadModel } = useStore();
   const [apiKey, setApiKey] = useState("");
+  const [apiFocused, setApiFocused] = useState(false);
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [msg, setMsg] = useState("");
+  const rm = useReducedMotion();
 
   useEffect(() => {
     getSetting<string>("anthropicApiKey", "").then(setApiKey);
@@ -187,50 +291,99 @@ export function SettingsView() {
     reader.readAsText(file);
   };
 
-  return (
-    <div style={{ display: "grid", gap: 12, maxWidth: 720 }}>
-      <Card title="HOME">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
-          <Field label="Home name"><TextInput value={home.name} onChange={(v) => saveHome({ name: v })} /></Field>
-        </div>
-        <SubH text="Default context (applied to new outlets)" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
-          <Field label="Build era"><Select value={dm.era} options={ERAS} onChange={(v) => saveMeta({ era: v })} /></Field>
-          <Field label="Wire material"><Select value={dm.wireMat} options={WIRES} onChange={(v) => saveMeta({ wireMat: v })} /></Field>
-          <Field label="Meter"><Select value={dm.meter} options={METER_NAMES} onChange={(v) => saveMeta({ meter: v, meterZ: METERS[v].z })} /></Field>
-        </div>
-      </Card>
+  const storageUsage = storage
+    ? `${(storage.usage / 1e6).toFixed(1)} MB${storage.quota ? ` / ${(storage.quota / 1e6).toFixed(0)} MB` : ""}`
+    : null;
 
-      <Card title="DATA — portable & offline-first">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={doExport} style={solid(C.good)}>⬇ Export home JSON</button>
-          <label style={{ ...solid(C.blue), display: "inline-block" }}>⬆ Import JSON
+  return (
+    <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: "4px 0" }}>
+
+      {/* ── HOME ──────────────────────────────────────────────────────── */}
+      <HudPanel>
+        <HudSectionLabel label="Home" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, marginBottom: 12 }}>
+          <Field label="Home name">
+            <TextInput value={home.name} onChange={(v) => saveHome({ name: v })} />
+          </Field>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${HUD.line}`, paddingTop: 12, marginTop: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+            <span style={{ color: HUD.cyan, fontSize: 8, lineHeight: 1 }}>▸</span>
+            <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.dim, textTransform: "uppercase" as const }}>
+              Default Context — applied to new outlets
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
+            <Field label="Build era"><Select value={dm.era} options={ERAS} onChange={(v) => saveMeta({ era: v })} /></Field>
+            <Field label="Wire material"><Select value={dm.wireMat} options={WIRES} onChange={(v) => saveMeta({ wireMat: v })} /></Field>
+            <Field label="Meter"><Select value={dm.meter} options={METER_NAMES} onChange={(v) => saveMeta({ meter: v, meterZ: METERS[v].z })} /></Field>
+          </div>
+        </div>
+      </HudPanel>
+
+      {/* ── DATA ──────────────────────────────────────────────────────── */}
+      <HudPanel>
+        <HudSectionLabel label="Data — Portable &amp; Offline-First" />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <button onClick={doExport} className="oi-press" style={solid(C.good)}>⬇ Export home JSON</button>
+          <label className="oi-press" style={{ ...solid(C.blue), display: "inline-flex", alignItems: "center", cursor: "pointer" }}>
+            ⬆ Import JSON
             <input type="file" accept="application/json" onChange={doImport} style={{ display: "none" }} />
           </label>
         </div>
-        {msg && <div style={{ marginTop: 8, color: C.dim, fontSize: 11, fontFamily: mono }}>{msg}</div>}
-        <div style={{ marginTop: 10, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
-          All data lives in this browser (IndexedDB) and works with zero network. Export is the portable interchange unit — email it, back it up, or load it into the dashboard.
-          {storage && <> · using {(storage.usage / 1e6).toFixed(1)}MB{storage.quota ? ` of ${(storage.quota / 1e6).toFixed(0)}MB` : ""}</>}
-          <button onClick={() => requestPersistence().then((ok) => setMsg(ok ? "✓ Persistent storage granted." : "Persistence not granted."))} style={{ ...ghost(C.dim), marginLeft: 8 }}>Request durable storage</button>
+        {msg && (
+          <div className={rm ? undefined : "oi-fadeup"} style={{ marginBottom: 8, color: msg.startsWith("✓") ? C.good : C.bad, fontSize: 11, fontFamily: mono }}>
+            {msg}
+          </div>
+        )}
+        <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+          All data lives in this browser (IndexedDB) — zero network required.
+          {storageUsage && (
+            <StatusChip color={HUD.cyan}>
+              {storageUsage}
+            </StatusChip>
+          )}
+          <button
+            onClick={() => requestPersistence().then((ok) => setMsg(ok ? "✓ Persistent storage granted." : "Persistence not granted."))}
+            style={ghost(C.dim)}
+          >
+            Request durable storage
+          </button>
         </div>
-      </Card>
+      </HudPanel>
 
-      <Card title="AI SECOND OPINION — optional live key">
+      {/* ── AI KEY ────────────────────────────────────────────────────── */}
+      <HudPanel>
+        <HudSectionLabel label="AI Second Opinion — Optional Live Key" />
         <Field label="Anthropic API key (stored locally only)">
-          <input type="password" value={apiKey} placeholder="sk-ant-…" onChange={(e) => setApiKey(e.target.value)}
-            onBlur={() => setSetting("anthropicApiKey", apiKey)}
-            style={{ background: "#0A0A0E", border: `1px solid ${C.border}`, borderRadius: 7, padding: "9px 10px", fontFamily: mono, fontSize: 12 }} />
+          <input
+            type="password"
+            value={apiKey}
+            placeholder="sk-ant-…"
+            onChange={(e) => setApiKey(e.target.value)}
+            onFocus={() => setApiFocused(true)}
+            onBlur={() => { setApiFocused(false); setSetting("anthropicApiKey", apiKey); }}
+            style={{
+              ...inputBase,
+              borderColor: apiFocused ? HUD.cyan : HUD.line,
+              boxShadow: apiFocused ? glow(HUD.cyan, 0.3) : undefined,
+            }}
+          />
         </Field>
         <div style={{ marginTop: 8, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
-          Optional. The deterministic engine never needs this. With a key + connectivity, the Diagnose tab can call Claude for a second opinion; without it, use “Copy report → Claude”. The key is stored only in this browser.
+          Optional. The deterministic engine never needs this. With a key + connectivity, the Diagnose tab can
+          call Claude for a second opinion; without it, use "Copy report → Claude". The key is stored only in this browser.
         </div>
-      </Card>
+      </HudPanel>
 
-      <Card title="METER SOURCE — manual entry + experimental hardware">
+      {/* ── METER SOURCE ──────────────────────────────────────────────── */}
+      <HudPanel>
+        <HudSectionLabel label="Meter Source — Manual Entry + Experimental Hardware" />
         <AdapterPanel />
-      </Card>
+      </HudPanel>
 
+      {/* ── CLOUD SYNC ────────────────────────────────────────────────── */}
       <CloudSyncCard />
 
       <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.6, padding: "0 4px" }}>
@@ -240,5 +393,24 @@ export function SettingsView() {
   );
 }
 
-const solid = (c: string): React.CSSProperties => ({ background: c, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "9px 13px", fontWeight: 700, fontFamily: mono, fontSize: 12, cursor: "pointer" });
-const ghost = (c: string): React.CSSProperties => ({ background: "transparent", color: c, border: `1px solid ${c}`, borderRadius: 6, padding: "5px 9px", fontFamily: mono, fontSize: 10, cursor: "pointer" });
+const solid = (c: string): React.CSSProperties => ({
+  background: c,
+  color: "#0A0A0C",
+  border: "none",
+  borderRadius: 8,
+  padding: "9px 13px",
+  fontWeight: 700,
+  fontFamily: mono,
+  fontSize: 12,
+  cursor: "pointer",
+});
+const ghost = (c: string): React.CSSProperties => ({
+  background: "transparent",
+  color: c,
+  border: `1px solid ${c}`,
+  borderRadius: 6,
+  padding: "5px 9px",
+  fontFamily: mono,
+  fontSize: 10,
+  cursor: "pointer",
+});

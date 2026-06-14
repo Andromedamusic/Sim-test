@@ -1,12 +1,13 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   CIRCUIT BUS — breaker-panel summary visualization.
-   Each circuit is a breaker "node" colored by its health grade. Systemic
-   flags show a warning badge. Hover lifts. Staggered entrance.
+   CIRCUIT BUS — mission-control breaker-panel visual.
+   A glowing bus-bar rail with breaker nodes coloured by health grade.
+   Health status dots, flag-badge overlays, staggered entrance, hover lift.
    ════════════════════════════════════════════════════════════════════════════ */
 import React from "react";
 import type { CircuitHealth } from "../../../core";
-import { C, mono, GRADE_COLOR } from "../../theme";
-import { AnimatedNumber } from "../../anim";
+import { C, mono, HUD, GRADE_COLOR, glow } from "../../theme";
+import { AnimatedNumber, useReducedMotion } from "../../anim";
+import { Bracket } from "../../hud/Bracket";
 
 interface Props {
   circuits: CircuitHealth[];
@@ -14,6 +15,8 @@ interface Props {
 }
 
 export function CircuitBus({ circuits, nameOf }: Props) {
+  const reduced = useReducedMotion();
+
   if (circuits.length === 0) {
     return (
       <div
@@ -21,7 +24,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
           color: C.dimmer,
           fontSize: 11,
           fontFamily: mono,
-          padding: "10px 0",
+          padding: "14px 0",
           textAlign: "center",
         }}
       >
@@ -38,34 +41,36 @@ export function CircuitBus({ circuits, nameOf }: Props) {
 
   return (
     <div>
-      {/* bus rail */}
+      {/* bus-bar rail */}
       <div
         style={{
           position: "relative",
-          marginBottom: 10,
+          marginBottom: 12,
         }}
       >
-        {/* horizontal bus bar line */}
+        {/* main bus line */}
         <div
           style={{
             position: "absolute",
-            left: 20,
-            right: 20,
-            top: 12,
-            height: 3,
-            background: `linear-gradient(90deg, ${C.border}, #3A3A46, ${C.border})`,
+            left: 12,
+            right: 12,
+            top: 14,
+            height: 4,
+            background: `linear-gradient(90deg, ${HUD.line}, ${HUD.lineHi} 30%, ${HUD.cyan}55 50%, ${HUD.lineHi} 70%, ${HUD.line})`,
             borderRadius: 2,
+            boxShadow: `0 0 8px -2px ${HUD.cyan}44`,
+            zIndex: 0,
           }}
         />
-
-        {/* breaker nodes */}
+        {/* breaker nodes — staggered entrance */}
         <div
-          className="oi-stagger"
+          className={reduced ? "" : "oi-stagger"}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
-            gap: 8,
+            gridTemplateColumns: "repeat(auto-fill, minmax(138px, 1fr))",
+            gap: 9,
             position: "relative",
+            zIndex: 1,
           }}
         >
           {sorted.map((c) => (
@@ -73,6 +78,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
               key={c.circuitId}
               circuit={c}
               name={nameOf(c.circuitId)}
+              reduced={reduced}
             />
           ))}
         </div>
@@ -82,11 +88,12 @@ export function CircuitBus({ circuits, nameOf }: Props) {
       <div
         style={{
           display: "flex",
-          gap: 12,
+          gap: 14,
           flexWrap: "wrap",
-          marginTop: 4,
-          paddingTop: 8,
-          borderTop: `1px solid ${C.border}`,
+          marginTop: 6,
+          paddingTop: 10,
+          borderTop: `1px solid ${HUD.line}`,
+          alignItems: "center",
         }}
       >
         {(["GREEN", "YELLOW", "AMBER", "RED"] as const).map((g) => (
@@ -97,8 +104,9 @@ export function CircuitBus({ circuits, nameOf }: Props) {
               alignItems: "center",
               gap: 5,
               color: C.dimmer,
-              fontSize: 9,
+              fontSize: 8.5,
               fontFamily: mono,
+              letterSpacing: 0.8,
             }}
           >
             <span
@@ -109,6 +117,7 @@ export function CircuitBus({ circuits, nameOf }: Props) {
                 background: GRADE_COLOR[g],
                 display: "inline-block",
                 flexShrink: 0,
+                boxShadow: `0 0 5px ${GRADE_COLOR[g]}66`,
               }}
             />
             {g}
@@ -120,12 +129,13 @@ export function CircuitBus({ circuits, nameOf }: Props) {
             alignItems: "center",
             gap: 5,
             color: C.dimmer,
-            fontSize: 9,
+            fontSize: 8.5,
             fontFamily: mono,
             marginLeft: "auto",
           }}
         >
-          <span style={{ color: C.warn }}>⚠</span> systemic flag
+          <span style={{ color: C.warn, fontSize: 10 }}>⚑</span>
+          systemic flag
         </div>
       </div>
     </div>
@@ -135,52 +145,77 @@ export function CircuitBus({ circuits, nameOf }: Props) {
 function BreakerNode({
   circuit,
   name,
+  reduced,
 }: {
   circuit: CircuitHealth;
   name: string;
+  reduced: boolean;
 }) {
   const color = GRADE_COLOR[circuit.grade];
   const hasFlags = circuit.systemicFlags.length > 0;
   const riskPct = Math.round(circuit.risk * 100);
+  const isDanger = circuit.grade === "RED";
+  const isAmber = circuit.grade === "AMBER";
 
   return (
     <div
       className="oi-lift"
       style={{
-        background: `linear-gradient(170deg, ${color}14, ${color}06)`,
-        border: `1px solid ${color}44`,
+        background: `linear-gradient(170deg, ${color}16 0%, ${color}06 60%, #0A0E1400 100%)`,
+        border: `1px solid ${color}40`,
         borderTop: `3px solid ${color}`,
-        borderRadius: 8,
-        padding: "10px 10px 8px",
+        borderRadius: 10,
+        padding: "11px 11px 9px",
         position: "relative",
         cursor: "default",
-        transition: "border-color .18s, box-shadow .18s",
+        boxShadow: (isDanger || isAmber)
+          ? `0 0 14px -6px ${color}55, inset 0 1px 0 ${color}22`
+          : `inset 0 1px 0 ${color}18`,
       }}
-      title={`${name} · risk ${riskPct}/100 · ${circuit.outletIds.length} outlets`}
+      title={`${name} · risk ${riskPct}/100 · ${circuit.outletIds.length} outlet${circuit.outletIds.length !== 1 ? "s" : ""}`}
     >
+      {/* connector stub — links visually to bus rail */}
+      <div
+        style={{
+          position: "absolute",
+          top: -12,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 2,
+          height: 12,
+          background: `linear-gradient(180deg, ${color}88 0%, ${color}22 100%)`,
+          borderRadius: 1,
+          zIndex: 0,
+        }}
+      />
+
       {/* flag badge */}
       {hasFlags && (
         <span
           style={{
             position: "absolute",
-            top: 5,
-            right: 6,
-            fontSize: 10,
+            top: 6,
+            right: 7,
+            fontSize: 11,
             color: C.warn,
+            lineHeight: 1,
+            filter: !reduced ? `drop-shadow(0 0 4px ${C.warn}88)` : undefined,
           }}
+          className={!reduced && isDanger ? "oi-pulse" : undefined}
           title={`${circuit.systemicFlags.length} systemic flag${circuit.systemicFlags.length !== 1 ? "s" : ""}`}
         >
-          ⚠
+          ⚑
         </span>
       )}
 
-      {/* health dot + grade */}
+      {/* status dot + grade label */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 6,
-          marginBottom: 6,
+          marginBottom: 7,
+          marginRight: hasFlags ? 16 : 0,
         }}
       >
         <span
@@ -190,16 +225,17 @@ function BreakerNode({
             borderRadius: 999,
             background: color,
             flexShrink: 0,
-            boxShadow: `0 0 6px ${color}88`,
+            boxShadow: !reduced ? glow(color, 0.5) : undefined,
           }}
+          className={isDanger && !reduced ? "oi-pulse" : undefined}
         />
         <span
           style={{
             color,
             fontFamily: mono,
             fontWeight: 800,
-            fontSize: 9.5,
-            letterSpacing: 1,
+            fontSize: 9,
+            letterSpacing: 1.2,
           }}
         >
           {circuit.grade}
@@ -211,10 +247,10 @@ function BreakerNode({
         style={{
           color: C.text,
           fontFamily: mono,
-          fontSize: 11,
+          fontSize: 11.5,
           fontWeight: 700,
           lineHeight: 1.2,
-          marginBottom: 4,
+          marginBottom: 5,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -225,18 +261,19 @@ function BreakerNode({
         {name}
       </div>
 
-      {/* footer stats */}
+      {/* outlet count + risk pct */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          marginBottom: 5,
         }}
       >
         <span
           style={{
             color: C.dimmer,
-            fontSize: 9.5,
+            fontSize: 9,
             fontFamily: mono,
           }}
         >
@@ -245,10 +282,10 @@ function BreakerNode({
         </span>
         <span
           style={{
-            color: color,
+            color,
             fontSize: 9.5,
             fontFamily: mono,
-            fontWeight: 700,
+            fontWeight: 800,
           }}
         >
           <AnimatedNumber value={riskPct} suffix="%" />
@@ -258,7 +295,6 @@ function BreakerNode({
       {/* risk bar */}
       <div
         style={{
-          marginTop: 5,
           height: 3,
           background: "#0A0A0E",
           borderRadius: 2,
@@ -269,9 +305,9 @@ function BreakerNode({
           style={{
             width: `${riskPct}%`,
             height: "100%",
-            background: color,
-            boxShadow: `0 0 4px ${color}`,
-            transition: "width .4s cubic-bezier(.2,.8,.2,1)",
+            background: `linear-gradient(90deg, ${color}88, ${color})`,
+            boxShadow: `0 0 5px ${color}88`,
+            transition: "width .5s cubic-bezier(.2,.8,.2,1)",
           }}
         />
       </div>

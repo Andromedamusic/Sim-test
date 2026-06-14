@@ -1,47 +1,124 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   VERDICT CLUSTER — hero instrument: RadialGauge + animated confidence +
-   hold-halo + stat chips. One glance conveys the tribunal's conclusion.
+   VERDICT CLUSTER — Halo-grade hero instrument: RadialGauge at 168px with
+   verdict word in holo/amber gradient, corner Brackets in verdict color, an
+   animated top scan-line, pulsing red frame on hold, and telemetry chips.
    ════════════════════════════════════════════════════════════════════════════ */
 import React from "react";
-import { RadialGauge, AnimatedNumber, GlowCard } from "../../anim";
-import { C, mono } from "../../theme";
+import { RadialGauge, AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
+import { C, HUD, mono, holoGrad, amberGrad } from "../../theme";
+import { Bracket } from "../../hud/Bracket";
 import { FAULTS } from "../../../core";
 import type { analyzeOutlet } from "../../../core";
 
 type Result = ReturnType<typeof analyzeOutlet>;
 
-// Distil the verbose verdict string into a punchy display word
 function shortVerdict(verdictCode: string): string {
   switch (verdictCode) {
     case "SAFETY HOLD": return "HOLD";
-    case "CONDEMN":     return "CONDEMN";
-    case "DEFECT":      return "DEFECT";
-    case "MINOR":       return "MINOR";
-    case "PASS":        return "PASS";
-    case "INCONCLUSIVE":return "INCON";
-    default:            return verdictCode.slice(0, 6);
+    case "CONDEMN":      return "CONDEMN";
+    case "DEFECT":       return "DEFECT";
+    case "MINOR":        return "MINOR";
+    case "PASS":         return "PASS";
+    case "INCONCLUSIVE": return "INCON";
+    default:             return verdictCode.slice(0, 6);
   }
 }
 
+/** Pick the gradient for the verdict word */
+function verdictGrad(verdictCode: string, vColor: string): string {
+  if (verdictCode === "PASS") return holoGrad;
+  if (verdictCode === "SAFETY HOLD" || verdictCode === "CONDEMN") {
+    return `linear-gradient(135deg,${C.danger} 0%,#FF8080 100%)`;
+  }
+  if (verdictCode === "DEFECT" || verdictCode === "MINOR") return amberGrad;
+  return `linear-gradient(135deg,${vColor} 0%,${vColor}99 100%)`;
+}
+
+/** Severity label for leading fault */
+function sevLabel(sev: number): string {
+  if (sev >= 9) return "CRITICAL";
+  if (sev >= 7) return "HIGH";
+  if (sev >= 5) return "MODERATE";
+  if (sev >= 3) return "LOW";
+  return "TRACE";
+}
+
 export function VerdictCluster({ result }: { result: Result }) {
+  const reduced = useReducedMotion();
   const vWord = shortVerdict(result.verdictCode);
   const confidencePct = result.confidence * 100;
-  const topFaultLabel = result.topFault !== "healthy" ? (FAULTS[result.topFault]?.name ?? result.topFault) : "Healthy";
+  const topFaultLabel = result.topFault !== "healthy"
+    ? (FAULTS[result.topFault]?.name ?? result.topFault)
+    : "Healthy";
+  const topFaultColor = FAULTS[result.topFault]?.color ?? C.good;
+  const topFaultSev   = FAULTS[result.topFault]?.sev ?? 0;
+  const grad = verdictGrad(result.verdictCode, result.vColor);
 
   return (
-    <GlowCard accent={result.vColor} className="oi-popin" style={{ padding: "18px 16px" }}>
+    <div
+      className={`oi-popin${result.hold && !reduced ? " oi-pulse" : ""}`}
+      style={{
+        position: "relative",
+        borderRadius: 16,
+        padding: "18px 16px 16px",
+        background: result.hold
+          ? `linear-gradient(160deg,#1A0404dd,#0D060Add)`
+          : `linear-gradient(160deg,#0D131Ddd,#0A0F17dd)`,
+        border: result.hold
+          ? `1.5px solid ${C.danger}`
+          : `1.5px solid ${result.vColor}55`,
+        boxShadow: result.hold
+          ? `0 0 0 1px ${C.danger}44, 0 8px 40px -12px ${C.danger}88`
+          : `0 0 0 1px ${result.vColor}22, 0 8px 40px -14px ${result.vColor}88`,
+        backdropFilter: "blur(10px)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Corner brackets */}
+      <Bracket color={result.vColor} size={14} inset={4} weight={2} opacity={0.9} />
+
+      {/* Animated top scan line */}
+      {!reduced && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            background: `linear-gradient(90deg,transparent 0%,${result.vColor}cc 40%,${result.vColor} 50%,${result.vColor}cc 60%,transparent 100%)`,
+            animation: "oi-scan 3.2s linear infinite",
+            opacity: 0.7,
+            pointerEvents: "none",
+            zIndex: 2,
+          }}
+        />
+      )}
+
       {/* Section label */}
-      <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1.5, fontWeight: 700, marginBottom: 12 }}>
+      <div style={{
+        color: C.dimmer,
+        fontSize: 9,
+        fontFamily: mono,
+        letterSpacing: 2,
+        fontWeight: 700,
+        marginBottom: 14,
+        textTransform: "uppercase",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+      }}>
+        <span style={{ color: result.vColor, fontSize: 7 }}>◆</span>
         ADJUDICATED VERDICT
       </div>
 
-      {/* Gauge + hold halo row */}
+      {/* Gauge + right info stack */}
       <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-        {/* Hold halo wrapper */}
+        {/* Hold halo wrapper + gauge */}
         <div style={{ position: "relative", flexShrink: 0 }}>
           {result.hold && (
             <div
-              className="oi-pulse"
+              className={reduced ? undefined : "oi-pulse"}
               style={{
                 position: "absolute",
                 inset: -10,
@@ -55,8 +132,8 @@ export function VerdictCluster({ result }: { result: Result }) {
           <RadialGauge
             value={result.confidence}
             max={1}
-            size={148}
-            thickness={12}
+            size={168}
+            thickness={13}
             color={result.vColor}
             label={vWord}
             sublabel="CONFIDENCE"
@@ -64,72 +141,130 @@ export function VerdictCluster({ result }: { result: Result }) {
           />
         </div>
 
-        {/* Right-side info stack */}
-        <div style={{ flex: 1, minWidth: 120, display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Animated confidence % */}
+        {/* Right info stack */}
+        <div style={{ flex: 1, minWidth: 120, display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Big verdict word in gradient */}
+          <div style={{
+            fontFamily: mono,
+            fontWeight: 900,
+            fontSize: 28,
+            lineHeight: 1,
+            background: grad,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+            letterSpacing: 1,
+          }}>
+            {vWord}
+          </div>
+
+          {/* Confidence readout */}
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 9, letterSpacing: 1 }}>CONFIDENCE</span>
-            <span style={{ color: result.vColor, fontFamily: mono, fontSize: 26, fontWeight: 800, lineHeight: 1 }}>
+            <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 8.5, letterSpacing: 1.2 }}>CONFIDENCE</span>
+            <span style={{ color: result.vColor, fontFamily: mono, fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
               <AnimatedNumber value={confidencePct} decimals={1} suffix="%" />
             </span>
           </div>
 
-          {/* Stat chips row */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <StatChip label="H" value={result.H.toFixed(2)} unit="bits" color={C.blue} />
-            <StatChip label="margin" value={result.margin.toFixed(1)} unit="×" color={C.amber} />
-          </div>
-
-          {/* Leading fault */}
-          <div style={{ background: C.panel2, borderRadius: 8, padding: "6px 10px", borderLeft: `3px solid ${FAULTS[result.topFault]?.color ?? C.dim}` }}>
-            <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 8, letterSpacing: 1, marginBottom: 2 }}>LEADING HYPOTHESIS</div>
-            <div style={{ color: FAULTS[result.topFault]?.color ?? C.text, fontFamily: mono, fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>
-              {topFaultLabel}
-            </div>
+          {/* Telemetry chips row */}
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+            <TelChip label="ENTROPY H" value={result.H.toFixed(2)} unit="bits" color={HUD.cyan} />
+            <TelChip label="MARGIN" value={result.margin.toFixed(1)} unit="×" color={C.amber} />
+            <TelChip label="SEV" value={sevLabel(topFaultSev)} unit="" color={topFaultColor} />
           </div>
         </div>
+      </div>
+
+      {/* Leading hypothesis bar */}
+      <div style={{
+        marginTop: 14,
+        background: topFaultColor + "12",
+        borderRadius: 10,
+        padding: "8px 12px",
+        borderLeft: `3px solid ${topFaultColor}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 8, letterSpacing: 1.2, marginBottom: 3 }}>LEADING HYPOTHESIS</div>
+          <div style={{
+            color: topFaultColor,
+            fontFamily: mono,
+            fontSize: 12,
+            fontWeight: 800,
+            lineHeight: 1.3,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}>
+            {topFaultLabel}
+          </div>
+        </div>
+        {topFaultSev > 0 && (
+          <div style={{
+            color: topFaultColor,
+            fontFamily: mono,
+            fontSize: 18,
+            fontWeight: 900,
+            lineHeight: 1,
+            textAlign: "center",
+            flexShrink: 0,
+          }}>
+            {topFaultSev}
+            <div style={{ fontSize: 7.5, color: C.dimmer, fontWeight: 400, letterSpacing: 0.5, marginTop: 1 }}>/ 10</div>
+          </div>
+        )}
       </div>
 
       {/* Safety hold alert */}
       {result.hold && result.demand.length > 0 && (
         <div
-          className="oi-pulse"
           style={{
-            marginTop: 14,
+            marginTop: 12,
             background: "#1A0404",
             border: `1px solid ${C.danger}`,
             borderRadius: 10,
             padding: "10px 12px",
           }}
         >
-          <div style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.5, marginBottom: 6 }}>
+          <div style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, marginBottom: 8 }}>
             ☠ SAFETY HOLD — RESOLVE BEFORE PROCEEDING
           </div>
           {result.demand.map((d, i) => (
-            <div key={i} style={{ color: "#FECACA", fontFamily: mono, fontSize: 10.5, lineHeight: 1.6, marginBottom: 2 }}>
+            <div key={i} style={{ color: "#FECACA", fontFamily: mono, fontSize: 10.5, lineHeight: 1.7 }}>
               ▸ {d}
             </div>
           ))}
         </div>
       )}
-    </GlowCard>
+    </div>
   );
 }
 
-function StatChip({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
+function TelChip({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
   return (
     <div style={{
-      background: color + "18",
+      background: color + "14",
       border: `1px solid ${color}44`,
-      borderRadius: 6,
-      padding: "4px 8px",
+      borderRadius: 7,
+      padding: "5px 9px",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
-      minWidth: 48,
+      minWidth: 52,
     }}>
-      <span style={{ color, fontFamily: mono, fontWeight: 800, fontSize: 13, lineHeight: 1 }}>{value}<span style={{ fontSize: 9 }}>{unit}</span></span>
-      <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 8, letterSpacing: 0.5, marginTop: 2 }}>{label.toUpperCase()}</span>
+      <span style={{
+        color,
+        fontFamily: mono,
+        fontWeight: 800,
+        fontSize: unit ? 13 : 10,
+        lineHeight: 1,
+      }}>
+        {value}
+        {unit && <span style={{ fontSize: 8.5, marginLeft: 1 }}>{unit}</span>}
+      </span>
+      <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 7.5, letterSpacing: 0.6, marginTop: 3 }}>{label}</span>
     </div>
   );
 }

@@ -24,6 +24,7 @@ function clampScale(v: number): number {
 
 interface AppState {
   ready: boolean;
+  memoryMode: boolean;
   model: HomeModel | null;
   activeFloorId: string | null;
   activeRoomId: string | null;
@@ -106,6 +107,7 @@ function replaceOutlet(model: HomeModel, o: OutletNode): HomeModel {
 
 export const useStore = create<AppState>((set, get) => ({
   ready: false,
+  memoryMode: false,
   model: null,
   activeFloorId: null,
   activeRoomId: null,
@@ -122,6 +124,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   init: async () => {
     requestPersistence();
+    await S.initStorage(); // probe IndexedDB; falls back to in-memory if blocked
     const [model, learnCounts, syncConfig, homes] = await Promise.all([
       S.ensureDefaultHome(),
       S.getSetting<Record<string, number>>("learnCounts", {}),
@@ -129,7 +132,7 @@ export const useStore = create<AppState>((set, get) => ({
       S.listHomes(),
     ]);
     set({
-      model, ready: true, learnCounts, syncConfig, homes,
+      model, ready: true, memoryMode: S.isMemoryMode(), learnCounts, syncConfig, homes,
       priorScale: priorScaleFromCounts(learnCounts),
       activeFloorId: model.floors[0]?.id ?? null,
       scratchMeta: { ...model.home.defaultMeta },

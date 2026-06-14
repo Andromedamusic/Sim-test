@@ -33,7 +33,7 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 ];
 
 export function App() {
-  const { ready, init, model, rev } = useStore();
+  const { ready, init, model, rev, memoryMode } = useStore();
   const [tab, setTab] = useState<TabId>("home");
   const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
 
@@ -60,6 +60,7 @@ export function App() {
         <HomeSwitcher />
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           {health && <Pill color={GRADE_COLOR[health.grade]}>{health.safetyHold ? "⚠ SAFETY HOLD" : health.grade}</Pill>}
+          {memoryMode && <span title="IndexedDB unavailable — running in memory; data won't persist across reloads. Use Settings → Export to save." style={{ fontSize: 9.5, fontFamily: mono, color: C.warn }}>⚠ test mode</span>}
           <span title={online ? "online" : "offline — engine fully functional"} style={{ fontSize: 10, fontFamily: mono, color: online ? C.good : C.dim }}>{online ? "● online" : "○ offline"}</span>
         </div>
       </header>

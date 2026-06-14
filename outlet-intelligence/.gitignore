@@ -5,3 +5,6 @@ dist-single/
 .DS_Store
 .vite/
 coverage/
+
+# built single-file test artifact
+outlet-intelligence/outlet-intelligence.html

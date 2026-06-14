@@ -2,6 +2,11 @@
    STORAGE FAÇADE — the only module that touches Dexie directly. Assembles the
    denormalised HomeModel, writes entities through, and round-trips the portable
    HomeExportDoc (the interchange + dashboard contract).
+
+   RESILIENCE: if IndexedDB is unavailable (e.g. a single-file build opened from
+   file:// on mobile, private-mode quirks, blocked storage), the whole layer
+   transparently falls back to an in-memory store so the app still runs for the
+   session (data just won't persist across reloads). isMemoryMode() reports it.
    ════════════════════════════════════════════════════════════════════════════ */
 import { db, type FeedbackRow } from "./db";
 import {
@@ -20,93 +25,153 @@ export const DEFAULT_META: Meta = {
   gauge: "14 AWG", topology: "Terminal", boxType: "Metal",
 };
 
+// ─── Resilient table primitives (IndexedDB → in-memory fallback) ──────────────
+type TableName = "homes" | "floors" | "rooms" | "circuits" | "outlets" | "settings" | "feedback";
+let MEMORY = false;
+export const isMemoryMode = (): boolean => MEMORY;
+
+const MEM: Record<TableName, Map<string, Record<string, unknown>>> = {
+  homes: new Map(), floors: new Map(), rooms: new Map(), circuits: new Map(),
+  outlets: new Map(), settings: new Map(), feedback: new Map(),
+};
+
+/** Probe IndexedDB once; flip to memory mode if it can't be opened. */
+export async function initStorage(): Promise<void> {
+  try {
+    if (typeof indexedDB === "undefined") { MEMORY = true; return; }
+    await db.open();
+  } catch {
+    MEMORY = true;
+  }
+}
+
+interface AnyTable {
+  put(o: unknown): Promise<unknown>;
+  get(k: string): Promise<unknown>;
+  toArray(): Promise<unknown[]>;
+  delete(k: string): Promise<void>;
+}
+const tbl = (name: TableName): AnyTable => db[name] as unknown as AnyTable;
+
+async function tPut(name: TableName, obj: Record<string, unknown>, keyField = "id"): Promise<void> {
+  if (!MEMORY) {
+    try { await tbl(name).put(obj); return; }
+    catch { MEMORY = true; }
+  }
+  MEM[name].set(String(obj[keyField]), obj);
+}
+async function tGet<T>(name: TableName, key: string): Promise<T | undefined> {
+  if (!MEMORY) {
+    try { return (await tbl(name).get(key)) as T | undefined; }
+    catch { MEMORY = true; }
+  }
+  return MEM[name].get(key) as T | undefined;
+}
+async function tAll<T>(name: TableName): Promise<T[]> {
+  if (!MEMORY) {
+    try { return (await tbl(name).toArray()) as T[]; }
+    catch { MEMORY = true; }
+  }
+  return [...MEM[name].values()] as T[];
+}
+async function tDelete(name: TableName, key: string): Promise<void> {
+  if (!MEMORY) {
+    try { await tbl(name).delete(key); return; }
+    catch { MEMORY = true; }
+  }
+  MEM[name].delete(key);
+}
+
 // ─── Home assembly ────────────────────────────────────────────────────────────
-export async function listHomes(): Promise<HomeNode[]> {
-  return db.homes.toArray();
+export function listHomes(): Promise<HomeNode[]> {
+  return tAll<HomeNode>("homes");
 }
 
 export async function loadHomeModel(homeId: string): Promise<HomeModel | null> {
-  const home = await db.homes.get(homeId);
+  const home = await tGet<HomeNode>("homes", homeId);
   if (!home) return null;
-  const [floors, circuits] = await Promise.all([
-    db.floors.where("homeId").equals(homeId).toArray(),
-    db.circuits.where("homeId").equals(homeId).toArray(),
-  ]);
-  const floorIds = floors.map((f) => f.id);
-  const rooms = (await db.rooms.toArray()).filter((r) => floorIds.includes(r.floorId));
+  const floors = (await tAll<FloorNode>("floors")).filter((f) => f.homeId === homeId);
+  const circuits = (await tAll<CircuitNode>("circuits")).filter((c) => c.homeId === homeId);
+  const floorIds = new Set(floors.map((f) => f.id));
+  const rooms = (await tAll<RoomNode>("rooms")).filter((r) => floorIds.has(r.floorId));
   const roomIds = new Set(rooms.map((r) => r.id));
-  const outlets = (await db.outlets.toArray()).filter((o) => roomIds.has(o.roomId));
+  const outlets = (await tAll<OutletNode>("outlets")).filter((o) => roomIds.has(o.roomId));
   floors.sort((a, b) => a.level - b.level);
   return { home, floors, rooms, circuits, outlets };
 }
 
+function freshHome(name = "My Home"): HomeModel {
+  const ts = nowISO();
+  const home: HomeNode = { id: uid(), name, defaultMeta: { ...DEFAULT_META }, createdAt: ts, updatedAt: ts };
+  const floor: FloorNode = { id: uid(), homeId: home.id, level: 1, name: "Main Floor", createdAt: ts, updatedAt: ts };
+  return { home, floors: [floor], rooms: [], circuits: [], outlets: [] };
+}
+
 /** Create (or return) a starter home so the app always has something to open. */
 export async function ensureDefaultHome(): Promise<HomeModel> {
-  const homes = await db.homes.toArray();
+  const homes = await tAll<HomeNode>("homes");
   if (homes.length) {
     const m = await loadHomeModel(homes[0].id);
     if (m) return m;
   }
-  const ts = nowISO();
-  const home: HomeNode = { id: uid(), name: "My Home", defaultMeta: { ...DEFAULT_META }, createdAt: ts, updatedAt: ts };
-  const floor: FloorNode = { id: uid(), homeId: home.id, level: 1, name: "Main Floor", createdAt: ts, updatedAt: ts };
-  await db.homes.put(home);
-  await db.floors.put(floor);
-  return { home, floors: [floor], rooms: [], circuits: [], outlets: [] };
+  const model = freshHome();
+  await tPut("homes", model.home as unknown as Record<string, unknown>);
+  await tPut("floors", model.floors[0] as unknown as Record<string, unknown>);
+  return model;
 }
 
 // ─── Multi-home management ────────────────────────────────────────────────────
 export async function createHome(name: string): Promise<HomeModel> {
-  const ts = nowISO();
-  const home: HomeNode = { id: uid(), name: name?.trim() || "New Home", defaultMeta: { ...DEFAULT_META }, createdAt: ts, updatedAt: ts };
-  const floor: FloorNode = { id: uid(), homeId: home.id, level: 1, name: "Main Floor", createdAt: ts, updatedAt: ts };
-  await db.homes.put(home);
-  await db.floors.put(floor);
-  return { home, floors: [floor], rooms: [], circuits: [], outlets: [] };
+  const model = freshHome(name?.trim() || "New Home");
+  await tPut("homes", model.home as unknown as Record<string, unknown>);
+  await tPut("floors", model.floors[0] as unknown as Record<string, unknown>);
+  return model;
 }
 
 export async function renameHome(id: string, name: string): Promise<void> {
-  const h = await db.homes.get(id);
-  if (h) await db.homes.put({ ...h, name: name.trim() || h.name, updatedAt: nowISO() });
+  const h = await tGet<HomeNode>("homes", id);
+  if (h) await tPut("homes", { ...h, name: name.trim() || h.name, updatedAt: nowISO() });
 }
 
 export async function deleteHome(id: string): Promise<void> {
-  const floors = await db.floors.where("homeId").equals(id).toArray();
+  const floors = (await tAll<FloorNode>("floors")).filter((f) => f.homeId === id);
   for (const f of floors) await deleteFloor(f.id);
-  await db.circuits.where("homeId").equals(id).delete();
-  await db.homes.delete(id);
+  const circuits = (await tAll<CircuitNode>("circuits")).filter((c) => c.homeId === id);
+  for (const c of circuits) await tDelete("circuits", c.id);
+  await tDelete("homes", id);
 }
 
 // ─── Write-through (entity puts/deletes) ──────────────────────────────────────
-export const putHome = (h: HomeNode) => db.homes.put({ ...h, updatedAt: nowISO() });
-export const putFloor = (f: FloorNode) => db.floors.put({ ...f, updatedAt: nowISO() });
-export const putRoom = (r: RoomNode) => db.rooms.put({ ...r, updatedAt: nowISO() });
-export const putCircuit = (c: CircuitNode) => db.circuits.put(c);
-export const putOutlet = (o: OutletNode) => db.outlets.put({ ...o, updatedAt: nowISO() });
+export const putHome = (h: HomeNode) => tPut("homes", { ...h, updatedAt: nowISO() });
+export const putFloor = (f: FloorNode) => tPut("floors", { ...f, updatedAt: nowISO() });
+export const putRoom = (r: RoomNode) => tPut("rooms", { ...r, updatedAt: nowISO() });
+export const putCircuit = (c: CircuitNode) => tPut("circuits", { ...c });
+export const putOutlet = (o: OutletNode) => tPut("outlets", { ...o, updatedAt: nowISO() });
 
 export async function deleteRoom(roomId: string) {
-  await db.outlets.where("roomId").equals(roomId).delete();
-  await db.rooms.delete(roomId);
+  const outlets = (await tAll<OutletNode>("outlets")).filter((o) => o.roomId === roomId);
+  for (const o of outlets) await tDelete("outlets", o.id);
+  await tDelete("rooms", roomId);
 }
 export async function deleteFloor(floorId: string) {
-  const rooms = await db.rooms.where("floorId").equals(floorId).toArray();
+  const rooms = (await tAll<RoomNode>("rooms")).filter((r) => r.floorId === floorId);
   for (const r of rooms) await deleteRoom(r.id);
-  await db.floors.delete(floorId);
+  await tDelete("floors", floorId);
 }
-export const deleteOutlet = (id: string) => db.outlets.delete(id);
-export const deleteCircuit = (id: string) => db.circuits.delete(id);
+export const deleteOutlet = (id: string) => tDelete("outlets", id);
+export const deleteCircuit = (id: string) => tDelete("circuits", id);
 
 // ─── Settings (API key, prefs) ────────────────────────────────────────────────
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
-  const row = await db.settings.get(key);
-  return row ? (row.value as T) : fallback;
+  const row = await tGet<{ key: string; value: T }>("settings", key);
+  return row ? row.value : fallback;
 }
-export const setSetting = (key: string, value: unknown) => db.settings.put({ key, value });
+export const setSetting = (key: string, value: unknown) => tPut("settings", { key, value }, "key");
 
 // ─── Ground-truth feedback (active learning) ──────────────────────────────────
 export const addFeedback = (f: Omit<FeedbackRow, "id" | "submittedAt">) =>
-  db.feedback.put({ ...f, id: uid(), submittedAt: nowISO() });
-export const listFeedback = () => db.feedback.toArray();
+  tPut("feedback", { ...f, id: uid(), submittedAt: nowISO() });
+export const listFeedback = () => tAll<FeedbackRow>("feedback");
 
 // ─── Portable export / import ─────────────────────────────────────────────────
 export async function exportHome(homeId: string): Promise<HomeExportDoc | null> {
@@ -122,13 +187,11 @@ export async function exportHome(homeId: string): Promise<HomeExportDoc | null> 
 
 export async function importHome(doc: HomeExportDoc): Promise<string> {
   // idempotent upsert keyed on existing ids
-  await db.transaction("rw", [db.homes, db.floors, db.rooms, db.circuits, db.outlets], async () => {
-    await db.homes.put(doc.home);
-    await db.floors.bulkPut(doc.floors);
-    await db.rooms.bulkPut(doc.rooms);
-    await db.circuits.bulkPut(doc.circuits);
-    await db.outlets.bulkPut(doc.outlets);
-  });
+  await tPut("homes", doc.home as unknown as Record<string, unknown>);
+  for (const f of doc.floors) await tPut("floors", f as unknown as Record<string, unknown>);
+  for (const r of doc.rooms) await tPut("rooms", r as unknown as Record<string, unknown>);
+  for (const c of doc.circuits) await tPut("circuits", c as unknown as Record<string, unknown>);
+  for (const o of doc.outlets) await tPut("outlets", o as unknown as Record<string, unknown>);
   return doc.home.id;
 }
 

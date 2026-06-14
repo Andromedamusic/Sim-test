@@ -12,10 +12,15 @@
    - Animated grid lines + SVG vignette
    - Improved empty state with oi-float / oi-pulse
    - useReducedMotion respected throughout
+   - Polygon / L-shaped room support:
+       • Rooms render as <polygon> using roomPolygonWorld()
+       • Outlet placement uses nearestEdge() + outletWorldPos()
+       • RoomInspector: "Make L-shaped", vertex handles, "+ vertex", delete vertex, "Reset to rectangle"
    ════════════════════════════════════════════════════════════════════════════ */
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useStore } from "../../state/store";
-import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta } from "../../core";
+import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta,
+         outletWorldPos, nearestEdge, roomPolygonWorld, polygonBBox, type Vec2 } from "../../core";
 import { C, mono, VERDICT_COLOR, GRADE_COLOR } from "../theme";
 import { useReducedMotion } from "../anim";
 import { Card, Field, NumberInput, TextInput, Select, TriToggle, Sheet, Row, Bar } from "../components";
@@ -60,10 +65,28 @@ function roomGradeColor(outlets: OutletNode[]): string {
 
 // ── circuit colour helper ────────────────────────────────────────────────────
 function circuitColor(outlets: OutletNode[]): string {
-  // Use the most alarming verdict's colour
   const v = worstVerdict(outlets);
   if (v) return VERDICT_COLOR[v] ?? C.blue;
   return C.blue;
+}
+
+// ── point-in-polygon (ray-casting) ───────────────────────────────────────────
+function pointInPolygon(pt: Vec2, poly: Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if ((yi > pt.y) !== (yj > pt.y) && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ── vertex drag state ────────────────────────────────────────────────────────
+interface VertexDrag {
+  vertexIdx: number;
+  roomId: string;
 }
 
 export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
@@ -74,7 +97,10 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | "ALL">("ALL");
   const [heatmap, setHeatmap] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  // Canvas pan drag — null when idle
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  // Vertex drag — null when idle; set on pointerdown on a vertex handle
+  const vertexDrag = useRef<VertexDrag | null>(null);
   const reduced = useReducedMotion();
 
   if (!model) return null;
@@ -97,7 +123,7 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     const m = new Map<string, { x: number; y: number }>();
     for (const r of rooms) {
       for (const o of outletsByRoom(r.id)) {
-        m.set(o.id, outletXY(o, r));
+        m.set(o.id, outletWorldPos(r, o.position));
       }
     }
     return m;
@@ -114,13 +140,16 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     return circuitColor(selectedCircuitOutlets);
   }, [selectedCircuitId, selectedCircuitOutlets]);
 
-  // content bounding box (world metres)
+  // content bounding box (world metres) — respects polygon extents
   const bb = useMemo(() => {
     if (!rooms.length) return { x: 0, y: 0, w: 10, h: 8 };
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const r of rooms) {
-      minX = Math.min(minX, r.floorOffset.x); minY = Math.min(minY, r.floorOffset.y);
-      maxX = Math.max(maxX, r.floorOffset.x + r.width_m); maxY = Math.max(maxY, r.floorOffset.y + r.depth_m);
+      const pts = roomPolygonWorld(r);
+      for (const p of pts) {
+        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+      }
     }
     return { x: minX - PAD, y: minY - PAD, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 };
   }, [rooms]);
@@ -135,11 +164,41 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     return { x: p.x, y: p.y };
   };
 
+  // ── vertex handle pointer events ─────────────────────────────────────────
+  const onVertexPointerDown = useCallback((e: React.PointerEvent, roomId: string, vertexIdx: number) => {
+    e.stopPropagation(); // prevent canvas pan
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    vertexDrag.current = { vertexIdx, roomId };
+  }, []);
+
+  // ── canvas pointer events ─────────────────────────────────────────────────
   const onPointerDown = (e: React.PointerEvent) => {
+    // If a vertex drag was just started via onVertexPointerDown, don't pan
+    if (vertexDrag.current) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drag.current = { x: e.clientX, y: e.clientY, moved: false };
   };
+
   const onPointerMove = (e: React.PointerEvent) => {
+    // Vertex drag takes priority
+    if (vertexDrag.current) {
+      const { roomId, vertexIdx } = vertexDrag.current;
+      const room = model.rooms.find((r) => r.id === roomId);
+      if (!room || !room.polygon) return;
+      const w = toWorld(e);
+      const localX = w.x - room.floorOffset.x;
+      const localY = w.y - room.floorOffset.y;
+      const newPoly = room.polygon.map((v, i) => (i === vertexIdx ? { x: localX, y: localY } : v));
+      const bbox = polygonBBox(newPoly);
+      useStore.getState().updateRoom({
+        ...room,
+        polygon: newPoly,
+        width_m: Math.max(0.5, bbox.width_m),
+        depth_m: Math.max(0.5, bbox.depth_m),
+      });
+      return;
+    }
+
     if (!drag.current) return;
     const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) drag.current.moved = true;
@@ -149,7 +208,12 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
       drag.current.x = e.clientX; drag.current.y = e.clientY;
     }
   };
+
   const onPointerUp = (e: React.PointerEvent) => {
+    if (vertexDrag.current) {
+      vertexDrag.current = null;
+      return;
+    }
     const wasDrag = drag.current?.moved;
     drag.current = null;
     if (wasDrag) return; // it was a pan, not a tap
@@ -160,13 +224,14 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     // hit-test outlets first
     for (const r of rooms) {
       for (const o of outletsByRoom(r.id)) {
-        const p = outletXY(o, r);
+        const p = outletWorldPos(r, o.position);
         if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < 0.18 ** 2 * (1 / view.zoom + 1)) { setSheetOutlet(o.id); return; }
       }
     }
-    // room hit-test
+    // room hit-test — use polygon point-in-polygon for L-shapes
     for (const r of rooms) {
-      const inside = w.x >= r.floorOffset.x && w.x <= r.floorOffset.x + r.width_m && w.y >= r.floorOffset.y && w.y <= r.floorOffset.y + r.depth_m;
+      const poly = roomPolygonWorld(r);
+      const inside = pointInPolygon(w, poly);
       if (inside) {
         if (mode === "addOutlet") { placeOutlet(r, w); }
         else selectRoom(r.id);
@@ -177,16 +242,8 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   };
 
   const placeOutlet = async (r: RoomNode, w: { x: number; y: number }) => {
-    // nearest wall + offset
-    const dN = w.y - r.floorOffset.y, dS = r.floorOffset.y + r.depth_m - w.y;
-    const dW = w.x - r.floorOffset.x, dE = r.floorOffset.x + r.width_m - w.x;
-    const m = Math.min(dN, dS, dW, dE);
-    let wall: WallId = "N", off = 0.5;
-    if (m === dN) { wall = "N"; off = (w.x - r.floorOffset.x) / r.width_m; }
-    else if (m === dS) { wall = "S"; off = (w.x - r.floorOffset.x) / r.width_m; }
-    else if (m === dW) { wall = "W"; off = (w.y - r.floorOffset.y) / r.depth_m; }
-    else { wall = "E"; off = (w.y - r.floorOffset.y) / r.depth_m; }
-    const id = await useStore.getState().addOutlet(r.id, { wallId: wall, offset: Math.max(0.04, Math.min(0.96, off)) });
+    const { edge, offset, wallId } = nearestEdge(r, w);
+    const id = await useStore.getState().addOutlet(r.id, { wallId, offset, edge });
     setMode("select");
     setSheetOutlet(id);
   };
@@ -194,6 +251,9 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   const handleZoom = (delta: number) => {
     setView((v) => ({ ...v, zoom: Math.max(0.4, Math.min(8, v.zoom * delta)) }));
   };
+
+  // ── active room (for vertex handles) ─────────────────────────────────────
+  const activeRoom = activeRoomId ? model.rooms.find((r) => r.id === activeRoomId) ?? null : null;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -315,6 +375,14 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
             );
           })}
 
+          {/* ── vertex handles for the selected polygon room ── */}
+          {activeRoom && activeRoom.polygon && activeRoom.polygon.length >= 3 && (
+            <VertexHandles
+              room={activeRoom}
+              onVertexPointerDown={onVertexPointerDown}
+            />
+          )}
+
           {/* ── vignette overlay (purely decorative) ── */}
           <rect
             x={vb.x} y={vb.y} width={vb.w} height={vb.h}
@@ -375,15 +443,34 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   );
 }
 
-// ── geometry helpers ────────────────────────────────────────────────────────
-function outletXY(o: OutletNode, r: RoomNode): { x: number; y: number } {
-  const { x: ox, y: oy } = r.floorOffset;
-  switch (o.position.wallId) {
-    case "N": return { x: ox + o.position.offset * r.width_m, y: oy };
-    case "S": return { x: ox + o.position.offset * r.width_m, y: oy + r.depth_m };
-    case "W": return { x: ox, y: oy + o.position.offset * r.depth_m };
-    case "E": return { x: ox + r.width_m, y: oy + o.position.offset * r.depth_m };
-  }
+// ── vertex handles overlay ────────────────────────────────────────────────────
+interface VertexHandlesProps {
+  room: RoomNode;
+  onVertexPointerDown: (e: React.PointerEvent, roomId: string, idx: number) => void;
+}
+
+function VertexHandles({ room, onVertexPointerDown }: VertexHandlesProps) {
+  if (!room.polygon || room.polygon.length < 3) return null;
+  const worldPts = roomPolygonWorld(room);
+  const handleR = 0.14; // radius in world metres
+
+  return (
+    <g style={{ pointerEvents: "all" }}>
+      {worldPts.map((p, i) => (
+        <circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r={handleR}
+          fill={C.blue}
+          stroke="#0C0C10"
+          strokeWidth={0.04}
+          style={{ cursor: "move" }}
+          onPointerDown={(e) => onVertexPointerDown(e, room.id, i)}
+        />
+      ))}
+    </g>
+  );
 }
 
 // ── grid lines ──────────────────────────────────────────────────────────────
@@ -427,47 +514,51 @@ interface RoomShapeProps {
 }
 
 function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTapOutlet }: RoomShapeProps) {
-  const { x, y } = room.floorOffset;
+  const worldPts = roomPolygonWorld(room);
+  const pointsAttr = worldPts.map((p) => `${p.x},${p.y}`).join(" ");
+
+  // Label anchor: bounding-box top-left for consistent placement
+  const xs = worldPts.map((p) => p.x);
+  const ys = worldPts.map((p) => p.y);
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  const maxX = Math.max(...xs), maxY = Math.max(...ys);
 
   return (
     <g>
-      {/* Base room rect */}
-      <rect
-        x={x} y={y}
-        width={room.width_m} height={room.depth_m}
-        rx={0.08}
+      {/* Base room polygon */}
+      <polygon
+        points={pointsAttr}
         fill={selected ? "#15202E" : "#121217"}
         stroke={selected ? C.blue : "#3A3A44"}
         strokeWidth={selected ? 0.06 : 0.035}
+        strokeLinejoin="round"
         style={{ transition: "fill 0.35s, stroke 0.25s" }}
       />
 
       {/* Heatmap tint overlay */}
       {heatFill && (
-        <rect
-          x={x} y={y}
-          width={room.width_m} height={room.depth_m}
-          rx={0.08}
+        <polygon
+          points={pointsAttr}
           fill={heatFill}
           style={{ pointerEvents: "none", transition: "fill 0.45s" }}
         />
       )}
 
-      <text x={x + 0.18} y={y + 0.55} fill={C.dim} fontSize={0.42} fontFamily={mono}>{room.name}</text>
+      <text x={minX + 0.18} y={minY + 0.55} fill={C.dim} fontSize={0.42} fontFamily={mono}>{room.name}</text>
       <text
-        x={x + room.width_m - 0.18}
-        y={y + room.depth_m - 0.22}
+        x={maxX - 0.18}
+        y={maxY - 0.22}
         fill="#3A3A44"
         fontSize={0.3}
         fontFamily={mono}
         textAnchor="end"
       >
-        {room.width_m}×{room.depth_m}m
+        {room.width_m.toFixed(1)}×{room.depth_m.toFixed(1)}m
       </text>
 
       {/* Outlets — using OutletMarker */}
       {outlets.map((o) => {
-        const p = outletXY(o, room);
+        const p = outletWorldPos(room, o.position);
         const highlighted = selectedCircuitId !== "ALL" && o.circuitId === selectedCircuitId;
         const dimmed = selectedCircuitId !== "ALL" && o.circuitId !== selectedCircuitId;
         return (
@@ -486,12 +577,13 @@ function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTap
   );
 }
 
-// ── room inspector (rename / resize / delete) ────────────────────────────────
+// ── room inspector (rename / resize / delete / polygon) ──────────────────────
 function RoomInspector({ roomId }: { roomId: string }) {
   const { model, updateRoom, removeRoom } = useStore();
   const room = model!.rooms.find((r) => r.id === roomId);
   if (!room) return null;
   const set = (patch: Partial<RoomNode>) => updateRoom({ ...room, ...patch });
+
   // Keyboard/screen-reader path for adding an outlet without the SVG canvas:
   // distribute new outlets around the four walls.
   const addOutletHere = () => {
@@ -501,6 +593,54 @@ function RoomInspector({ roomId }: { roomId: string }) {
     const onWall = here.filter((o) => o.position.wallId === wall).length;
     void useStore.getState().addOutlet(room.id, { wallId: wall, offset: Math.min(0.9, 0.2 + onWall * 0.2) });
   };
+
+  // ── polygon actions ─────────────────────────────────────────────────────
+  const makeLShaped = () => {
+    const w = room.width_m, d = room.depth_m;
+    // Cut the NE quadrant (top-right) to form an L:
+    // Full rect minus top-right corner of 50% × 50%
+    const poly: Vec2[] = [
+      { x: 0,       y: 0 },
+      { x: w * 0.5, y: 0 },
+      { x: w * 0.5, y: d * 0.5 },
+      { x: w,       y: d * 0.5 },
+      { x: w,       y: d },
+      { x: 0,       y: d },
+    ];
+    const bbox = polygonBBox(poly);
+    updateRoom({ ...room, polygon: poly, width_m: Math.max(0.5, bbox.width_m), depth_m: Math.max(0.5, bbox.depth_m) });
+  };
+
+  const resetToRect = () => {
+    updateRoom({ ...room, polygon: undefined });
+  };
+
+  const addVertex = () => {
+    if (!room.polygon || room.polygon.length < 3) return;
+    // Find the longest edge, insert midpoint
+    const poly = room.polygon;
+    let bestLen = -1, bestIdx = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const len = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+      if (len > bestLen) { bestLen = len; bestIdx = i; }
+    }
+    const a = poly[bestIdx], b = poly[(bestIdx + 1) % poly.length];
+    const mid: Vec2 = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const newPoly = [...poly.slice(0, bestIdx + 1), mid, ...poly.slice(bestIdx + 1)];
+    const bbox = polygonBBox(newPoly);
+    updateRoom({ ...room, polygon: newPoly, width_m: Math.max(0.5, bbox.width_m), depth_m: Math.max(0.5, bbox.depth_m) });
+  };
+
+  const deleteVertex = (idx: number) => {
+    if (!room.polygon || room.polygon.length <= 3) return; // min 3
+    const newPoly = room.polygon.filter((_, i) => i !== idx);
+    const bbox = polygonBBox(newPoly);
+    updateRoom({ ...room, polygon: newPoly, width_m: Math.max(0.5, bbox.width_m), depth_m: Math.max(0.5, bbox.depth_m) });
+  };
+
+  const isPolygon = !!(room.polygon && room.polygon.length >= 3);
+
   return (
     <Card title="ROOM">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8 }}>
@@ -510,6 +650,66 @@ function RoomInspector({ roomId }: { roomId: string }) {
         <Field label="Move X (m)"><NumberInput value={room.floorOffset.x} onChange={(v) => set({ floorOffset: { ...room.floorOffset, x: parseFloat(v) || 0 } })} /></Field>
         <Field label="Move Y (m)"><NumberInput value={room.floorOffset.y} onChange={(v) => set({ floorOffset: { ...room.floorOffset, y: parseFloat(v) || 0 } })} /></Field>
       </div>
+
+      {/* ── polygon shape controls ── */}
+      <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+        <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 8, letterSpacing: 1 }}>SHAPE</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {!isPolygon ? (
+            <button
+              onClick={makeLShaped}
+              style={shapeBtn(C.blue)}
+              title="Convert to L-shaped room (cut NE quadrant)"
+            >
+              Make L-shaped
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={resetToRect}
+                style={shapeBtn(C.dim)}
+                title="Reset to bounding-box rectangle"
+              >
+                Reset to rectangle
+              </button>
+              <button
+                onClick={addVertex}
+                style={shapeBtn(C.blue)}
+                title="Insert a vertex at the midpoint of the longest edge"
+              >
+                + Vertex
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Vertex list with delete buttons */}
+        {isPolygon && room.polygon && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 4 }}>
+              VERTICES ({room.polygon.length}) — drag handles on canvas to reposition
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 140, overflowY: "auto" }}>
+              {room.polygon.map((v, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontFamily: mono, color: C.dim }}>
+                  <span style={{ minWidth: 20, color: C.dimmer }}>{i}</span>
+                  <span>{v.x.toFixed(2)}, {v.y.toFixed(2)} m</span>
+                  {room.polygon!.length > 3 && (
+                    <button
+                      onClick={() => deleteVertex(i)}
+                      style={{ marginLeft: "auto", background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 5, padding: "2px 7px", fontSize: 10, fontFamily: mono, cursor: "pointer" }}
+                      title="Delete this vertex"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={addOutletHere} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
           + Add outlet
@@ -645,3 +845,15 @@ function circuitChip(id: string, selected: string, color: string): React.CSSProp
     transition: "background 0.2s, border-color 0.2s, color 0.2s",
   };
 }
+
+const shapeBtn = (color: string): React.CSSProperties => ({
+  background: "transparent",
+  color,
+  border: `1px solid ${color}`,
+  borderRadius: 7,
+  padding: "6px 11px",
+  fontSize: 11,
+  fontFamily: mono,
+  fontWeight: 700,
+  cursor: "pointer",
+});

@@ -17,7 +17,7 @@ async function freshDb() {
   await db.delete();
   await db.open();
   // reset the zustand singleton between tests
-  useStore.setState({ ready: false, model: null, activeFloorId: null, activeRoomId: null, activeOutletId: null, priorScale: {}, tracerCircuitId: null });
+  useStore.setState({ ready: false, model: null, activeFloorId: null, activeRoomId: null, activeOutletId: null, priorScale: {}, learnCounts: {}, tracerCircuitId: null, homes: [], syncConfig: null, syncStatus: { state: "idle" } });
 }
 
 beforeEach(async () => {
@@ -40,7 +40,7 @@ describe("App runtime", () => {
   it("renders every tab without throwing", async () => {
     render(<App />);
     await screen.findByText(/WHOLE-HOME ELECTRICAL HEALTH/i, {}, { timeout: 5000 });
-    for (const tab of ["Map", "Diagnose", "Panel", "Atlas", "Prognosis", "Learning", "Reference", "Settings", "Home"]) {
+    for (const tab of ["Map", "Diagnose", "Panel", "Atlas", "Prognosis", "Learning", "Report", "Reference", "Settings", "Home"]) {
       await act(async () => { clickTab(tab); });
       // a representative element renders for each
       await waitFor(() => expect(document.querySelectorAll("button, svg, input").length).toBeGreaterThan(0));
@@ -79,6 +79,30 @@ describe("App runtime", () => {
       await st.recordGroundTruth(outletId, "backstab_hot", "opened it, hot push-in was loose");
     });
     expect(useStore.getState().priorScale["backstab_hot"]).toBeGreaterThan(1);
+  });
+
+  it("multi-home: create + switch updates the home list and active home", async () => {
+    render(<App />);
+    await screen.findByText(/WHOLE-HOME ELECTRICAL HEALTH/i, {}, { timeout: 5000 });
+    await act(async () => { await useStore.getState().createHomeAndSwitch("Lake Cabin"); });
+    const st = useStore.getState();
+    expect(st.model!.home.name).toBe("Lake Cabin");
+    expect(st.homes.some((h) => h.name === "Lake Cabin")).toBe(true);
+    expect(st.homes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("polygon (L-shaped) room renders on the Map without crashing", async () => {
+    render(<App />);
+    await screen.findByText(/WHOLE-HOME ELECTRICAL HEALTH/i, {}, { timeout: 5000 });
+    await act(async () => {
+      const st = useStore.getState();
+      const floorId = st.activeFloorId!;
+      const roomId = await st.addRoom(floorId, "L-Room", 5, 4);
+      const room = useStore.getState().model!.rooms.find((r) => r.id === roomId)!;
+      await st.updateRoom({ ...room, polygon: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 2 }, { x: 2.5, y: 2 }, { x: 2.5, y: 4 }, { x: 0, y: 4 }] });
+    });
+    await act(async () => { clickTab("Map"); });
+    await waitFor(() => expect(document.querySelector("polygon")).toBeTruthy());
   });
 
   it("ErrorBoundary catches a child crash and offers retry instead of white-screening", () => {

@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
    SETTINGS — home/default context, data export-import (portable JSON), optional
-   Claude API key (for the live second-opinion), meter-source adapters, and
-   offline storage status.
+   Claude API key (for the live second-opinion), meter-source adapters, cloud
+   sync, and offline storage status.
    ════════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useState } from "react";
 import { useStore } from "../../state/store";
@@ -15,6 +15,145 @@ import { AdapterPanel } from "../components/AdapterPanel";
 
 const ERAS: Era[] = ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"];
 const WIRES: WireMaterial[] = ["Copper", "Aluminum", "Unknown"];
+
+// ─── Relative time helper ─────────────────────────────────────────────────────
+
+function relTime(iso: string): string {
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return "just now";
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch {
+    return iso;
+  }
+}
+
+// ─── Cloud Sync Card ──────────────────────────────────────────────────────────
+
+function CloudSyncCard() {
+  const syncConfig = useStore((s) => s.syncConfig);
+  const syncStatus = useStore((s) => s.syncStatus);
+  const setSyncConfig = useStore((s) => s.setSyncConfig);
+  const syncNow = useStore((s) => s.syncNow);
+
+  const [url, setUrl] = useState(syncConfig?.url ?? "");
+  const [token, setToken] = useState(syncConfig?.token ?? "");
+  const [saved, setSaved] = useState(false);
+
+  // keep local inputs in sync when store changes externally
+  useEffect(() => {
+    setUrl(syncConfig?.url ?? "");
+    setToken(syncConfig?.token ?? "");
+  }, [syncConfig]);
+
+  async function handleSave() {
+    const trimmedUrl = url.trim();
+    await setSyncConfig(trimmedUrl ? { url: trimmedUrl, token: token.trim() || undefined } : null);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  const syncing = syncStatus.state === "syncing";
+
+  const statusNode = (() => {
+    switch (syncStatus.state) {
+      case "syncing":
+        return (
+          <span style={{ color: C.blue, fontFamily: mono, fontSize: 11 }}>
+            <SpinnerInline /> syncing…
+          </span>
+        );
+      case "ok":
+        return (
+          <span style={{ color: C.good, fontFamily: mono, fontSize: 11 }}>
+            ✓ {syncStatus.message ?? "Synced"}
+            {syncStatus.at ? <span style={{ color: C.dimmer }}>&nbsp;· {relTime(syncStatus.at)}</span> : null}
+          </span>
+        );
+      case "error":
+        return (
+          <span style={{ color: C.bad, fontFamily: mono, fontSize: 11 }}>
+            ✗ {syncStatus.message ?? "Sync failed"}
+          </span>
+        );
+      default:
+        return <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 11 }}>Idle</span>;
+    }
+  })();
+
+  return (
+    <Card title="CLOUD SYNC (optional)">
+      <p style={{ color: C.dim, fontSize: 11, fontFamily: mono, margin: "0 0 10px", lineHeight: 1.6 }}>
+        Offline-first — sync is entirely optional. When configured, it PUT/GETs one JSON file per home to
+        any endpoint you control (S3 pre-signed URL, a small server, a Cloudflare Worker). Last-write-wins
+        by timestamp. The deterministic diagnostic engine never needs network access.
+      </p>
+
+      <div style={{ display: "grid", gap: 9 }}>
+        <Field label="ENDPOINT URL">
+          <TextInput
+            value={url}
+            onChange={setUrl}
+            placeholder="https://…/homes/{id}.json"
+          />
+        </Field>
+
+        <Field label="ACCESS TOKEN (optional)">
+          <input
+            type="password"
+            value={token}
+            placeholder="Bearer token or API key"
+            onChange={(e) => setToken(e.target.value)}
+            style={{
+              background: "#0A0A0E",
+              border: `1px solid ${C.border}`,
+              borderRadius: 7,
+              padding: "9px 10px",
+              fontFamily: mono,
+              fontSize: 12,
+              color: C.text,
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          />
+        </Field>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={handleSave} className="oi-press" style={solid(C.blue)}>
+            {saved ? "✓ Saved" : "Save"}
+          </button>
+          <button
+            onClick={() => syncNow()}
+            disabled={syncing || !syncConfig}
+            className="oi-press"
+            style={{ ...solid(C.amber), opacity: syncing || !syncConfig ? 0.45 : 1 }}
+          >
+            ⟲ Sync now
+          </button>
+          {statusNode}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 10, color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.5 }}>
+        Leave URL empty to disable cloud sync and clear saved config. Tokens are stored in this browser only.
+      </div>
+    </Card>
+  );
+}
+
+function SpinnerInline() {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % 4), 200);
+    return () => clearInterval(id);
+  }, []);
+  return <span style={{ fontFamily: mono }}>{"⠋⠙⠸⠴"[frame]}</span>;
+}
 
 export function SettingsView() {
   const { model, importDoc, reloadModel } = useStore();
@@ -91,6 +230,8 @@ export function SettingsView() {
       <Card title="METER SOURCE — manual entry + experimental hardware">
         <AdapterPanel />
       </Card>
+
+      <CloudSyncCard />
 
       <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, lineHeight: 1.6, padding: "0 4px" }}>
         Diagnostic support only. De-energize before opening an outlet or performing continuity/resistance checks. This tool does not replace a licensed electrician.

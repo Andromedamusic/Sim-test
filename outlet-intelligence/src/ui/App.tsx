@@ -5,6 +5,8 @@ import { C, mono, GRADE_COLOR } from "./theme";
 import { Pill } from "./components";
 import { MotionStyles } from "./anim";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { HomeSwitcher } from "./components/HomeSwitcher";
+import { ReportView } from "./views/ReportView";
 import { InferenceView } from "./views/InferenceView";
 import { FloorplanView } from "./views/FloorplanView";
 import { HomeDashboardView } from "./views/HomeDashboardView";
@@ -15,7 +17,7 @@ import { SettingsView } from "./views/SettingsView";
 import { PanelView } from "./views/PanelView";
 import { LearningView } from "./views/LearningView";
 
-type TabId = "home" | "map" | "diagnose" | "panel" | "atlas" | "prognosis" | "learning" | "ref" | "settings";
+type TabId = "home" | "map" | "diagnose" | "panel" | "atlas" | "prognosis" | "learning" | "report" | "ref" | "settings";
 const PRIMARY: TabId[] = ["home", "map", "diagnose", "panel", "settings"];
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "home", label: "Home", icon: "🏠" },
@@ -25,6 +27,7 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "atlas", label: "Atlas", icon: "📚" },
   { id: "prognosis", label: "Prognosis", icon: "📉" },
   { id: "learning", label: "Learning", icon: "🎓" },
+  { id: "report", label: "Report", icon: "📄" },
   { id: "ref", label: "Reference", icon: "📖" },
   { id: "settings", label: "Settings", icon: "⚙️" },
 ];
@@ -54,7 +57,7 @@ export function App() {
       {/* header */}
       <header style={{ background: "#0F0F12", borderBottom: `1px solid ${C.border}`, padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 20 }}>
         <span style={{ color: C.amber, fontFamily: mono, fontWeight: 800, fontSize: 14 }}>⚡ OUTLET&nbsp;INTELLIGENCE</span>
-        <span style={{ color: C.dimmer, fontSize: 10, fontFamily: mono }}>{model.home.name}</span>
+        <HomeSwitcher />
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           {health && <Pill color={GRADE_COLOR[health.grade]}>{health.safetyHold ? "⚠ SAFETY HOLD" : health.grade}</Pill>}
           <span title={online ? "online" : "offline — engine fully functional"} style={{ fontSize: 10, fontFamily: mono, color: online ? C.good : C.dim }}>{online ? "● online" : "○ offline"}</span>
@@ -79,6 +82,7 @@ export function App() {
         {tab === "atlas" && <AtlasView />}
         {tab === "prognosis" && <PrognosisView />}
         {tab === "learning" && <LearningView />}
+        {tab === "report" && <ReportView />}
         {tab === "ref" && <ReferenceView />}
         {tab === "settings" && <SettingsView />}
         </ErrorBoundary>

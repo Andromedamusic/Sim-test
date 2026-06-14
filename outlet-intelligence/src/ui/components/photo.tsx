@@ -15,6 +15,15 @@ import { C, mono, btn } from "../theme";
  * Pure browser; guarded against missing APIs.
  */
 export async function compressImage(file: File, maxDim = 1024, quality = 0.7): Promise<string> {
+  // Guard unsupported types up front so we fail loudly rather than silently
+  // storing a blank black JPEG (HEIC/HEIF can't be decoded by <canvas> outside
+  // Safari, and non-images have nothing to draw).
+  if (file.type && !/^image\//i.test(file.type)) {
+    throw new Error(`Not an image (${file.type || "unknown type"}).`);
+  }
+  if (/heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) {
+    throw new Error("HEIC/HEIF isn't supported in-browser. Set your camera to 'Most Compatible' (JPEG) or convert first.");
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("FileReader error"));
@@ -58,43 +67,36 @@ export async function compressImage(file: File, maxDim = 1024, quality = 0.7): P
 export function PhotoCaptureButton({ outletId }: { outletId: string }) {
   const addOutletPhoto = useStore((s) => s.addOutletPhoto);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setBusy(true); setErr(null);
     try {
       const dataUrl = await compressImage(file);
       await addOutletPhoto(outletId, dataUrl);
-    } catch (err) {
-      console.error("[photo] compress failed", err);
+    } catch (error) {
+      setErr((error as Error).message || "Could not add photo.");
     } finally {
-      // Reset so the same file can be re-selected if needed
+      setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <label
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        cursor: "pointer",
-        ...btn(C.blue, true),
-      }}
-      title="Add photo"
-    >
-      <span style={{ fontSize: 16, lineHeight: 1 }}>&#128247;</span>
-      <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700 }}>Add Photo</span>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: "none" }}
-        onChange={handleFile}
-      />
-    </label>
+    <span style={{ display: "inline-flex", flexDirection: "column", gap: 4 }}>
+      <label
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1, ...btn(C.blue, true) }}
+        title="Add photo"
+      >
+        <span style={{ fontSize: 16, lineHeight: 1 }}>&#128247;</span>
+        <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700 }}>{busy ? "Adding…" : "Add Photo"}</span>
+        <input ref={inputRef} type="file" accept="image/*" capture="environment" disabled={busy} style={{ display: "none" }} onChange={handleFile} />
+      </label>
+      {err && <span style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 9.5, maxWidth: 240, lineHeight: 1.4 }}>{err}</span>}
+    </span>
   );
 }
 

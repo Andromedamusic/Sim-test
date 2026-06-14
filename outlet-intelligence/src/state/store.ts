@@ -217,9 +217,16 @@ export const useStore = create<AppState>((set, get) => ({
     if (!outlet) return;
     const predicted = outlet.inference?.topFault ?? "";
     await S.addFeedback({ outletId, predictedFault: predicted, actualFault: actualFaultId, note: note ?? "" });
+    // Decaying reinforcement: every correction pulls all existing boosts 10% back
+    // toward neutral (1.0), then reinforces the confirmed fault. Stale evidence
+    // fades, so a single early misread can't permanently pin a prior at the cap.
     const prev = st.priorScale;
-    const next: Record<string, number> = { ...prev };
-    next[actualFaultId] = clampScale((prev[actualFaultId] ?? 1) * 1.18);
+    const next: Record<string, number> = {};
+    for (const [k, v] of Object.entries(prev)) {
+      const decayed = 1 + (v - 1) * 0.9;
+      if (Math.abs(decayed - 1) > 0.02) next[k] = clampScale(decayed);
+    }
+    next[actualFaultId] = clampScale((prev[actualFaultId] ?? 1) * 1.22);
     await S.setSetting("priorScale", next);
     set({ priorScale: next });
     // Re-run engine so the outlet's cached inference reflects new priors immediately

@@ -2,7 +2,7 @@
    PANEL VIEW — visual electrical breaker panel with circuit-level health,
    outlet assignment tracer, and inline circuit editing.
    ════════════════════════════════════════════════════════════════════════════ */
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useStore } from "../../state/store";
 import { rollupHome } from "../../core";
 import type { CircuitNode } from "../../core";
@@ -177,6 +177,9 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
   function roomName(roomId: string): string {
     return rooms.find((r) => r.id === roomId)?.name ?? "Unknown";
   }
+  function circuitLabelOf(id: string): string {
+    return model.circuits.find((c) => c.id === id)?.breakerLabel ?? "another circuit";
+  }
 
   return (
     <div className="oi-fadeup" style={{ marginTop: 14 }}>
@@ -249,7 +252,11 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
                 {unassignedOutlets.map((o) => (
                   <button
                     key={o.id}
-                    onClick={() => assignOutletToTracer(o.id)}
+                    onClick={() => {
+                      if (o.circuitId && o.circuitId !== circuitId &&
+                        !window.confirm(`Move "${o.label}" from ${circuitLabelOf(o.circuitId)} to this breaker?`)) return;
+                      assignOutletToTracer(o.id);
+                    }}
                     className="oi-press oi-lift"
                     style={{
                       background: C.panel2,
@@ -265,9 +272,14 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
                   >
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
                       <span style={{ fontFamily: mono, fontSize: 12, color: C.text, fontWeight: 700 }}>{o.label}</span>
-                      <span style={{ fontFamily: mono, fontSize: 9, color: C.dim }}>{roomName(o.roomId)}</span>
+                      <span style={{ fontFamily: mono, fontSize: 9, color: C.dim }}>
+                        {roomName(o.roomId)}
+                        {o.circuitId && o.circuitId !== circuitId && <span style={{ color: C.warn }}> · on {circuitLabelOf(o.circuitId)}</span>}
+                      </span>
                     </div>
-                    <span style={{ fontFamily: mono, fontSize: 10, color: C.amber }}>Assign +</span>
+                    <span style={{ fontFamily: mono, fontSize: 10, color: o.circuitId && o.circuitId !== circuitId ? C.warn : C.amber }}>
+                      {o.circuitId && o.circuitId !== circuitId ? "Move →" : "Assign +"}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -328,10 +340,11 @@ export function PanelView() {
   const updateCircuit = useStore((s) => s.updateCircuit);
   const tracerCircuitId = useStore((s) => s.tracerCircuitId);
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
+  // Memoize the home rollup — it is O(outlets×circuits) and re-runs on every
+  // store mutation (model identity changes on each write).
+  const health = useMemo(() => (model ? rollupHome(model) : null), [model]);
 
-  if (!model) return null;
-
-  const health = rollupHome(model);
+  if (!model || !health) return null;
   const circuitHealthById = new Map(health.circuits.map((c) => [c.circuitId, c]));
 
   // Sort circuits by slot number (nulls last), then by id

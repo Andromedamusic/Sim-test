@@ -265,11 +265,14 @@ export function PrognosisView() {
   const prevCurveRef = useRef<string>("");
 
   useEffect(() => {
-    if (!pathRef.current) return;
-    const len = pathRef.current.getTotalLength();
+    const el = pathRef.current;
+    if (!el) return;
+    // getTotalLength is an SVG geometry method; guard for environments (jsdom,
+    // some headless renderers) that don't implement it — animation simply no-ops.
+    const len = typeof el.getTotalLength === "function" ? el.getTotalLength() : 0;
     if (curvePath !== prevCurveRef.current) {
       prevCurveRef.current = curvePath;
-      setPathLen(len);
+      if (len > 0) setPathLen(len);
     }
   }, [curvePath]);
 

@@ -4,6 +4,7 @@ import { rollupHome } from "../core";
 import { C, mono, GRADE_COLOR } from "./theme";
 import { Pill } from "./components";
 import { MotionStyles } from "./anim";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { InferenceView } from "./views/InferenceView";
 import { FloorplanView } from "./views/FloorplanView";
 import { HomeDashboardView } from "./views/HomeDashboardView";
@@ -70,6 +71,7 @@ export function App() {
       </nav>
 
       <main style={{ flex: 1, maxWidth: 1280, width: "100%", margin: "0 auto", padding: 12 }}>
+        <ErrorBoundary key={tab}>
         {tab === "home" && <HomeDashboardView health={health!} onGoMap={() => setTab("map")} />}
         {tab === "map" && <FloorplanView onDiagnose={() => setTab("diagnose")} />}
         {tab === "diagnose" && <InferenceView />}
@@ -79,6 +81,7 @@ export function App() {
         {tab === "learning" && <LearningView />}
         {tab === "ref" && <ReferenceView />}
         {tab === "settings" && <SettingsView />}
+        </ErrorBoundary>
       </main>
 
       {/* mobile bottom nav */}

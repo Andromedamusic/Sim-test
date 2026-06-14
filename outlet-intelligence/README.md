@@ -6,12 +6,15 @@ Recursive home electrical outlet diagnostic intelligence — measure outlets wit
 
 ## Overview
 
-- **Per-outlet diagnosis** — enter voltage readings (VHN, VHG, VNG), continuity, behavioral flags. The engine produces a ranked posterior across 16 fault hypotheses, a safety verdict, and the next best measurement to take.
-- **Room & floor atlas** — place outlets on a 2-D floor plan; the home rolls up to a RAG health grade.
-- **Whole-home rollup** — aggregate severity scores surface the riskiest circuits and rooms at a glance.
-- **Offline-first PWA** — service worker precaches the shell; all diagnostics run client-side. No data leaves the device.
-- **Phone + desktop** — responsive React UI; works with a capacitive-touch multimeter workflow.
-- **Deterministic Bayesian engine** — 16 fault hypotheses with per-era base priors, Gaussian/special likelihoods, 6 critic agents, safety-asymmetric tribunal verdicts, and AI second-opinion (optional, requires network).
+- **Per-outlet diagnosis** — enter voltage readings (VHN, VHG, VNG), continuity, behavioral flags. The engine produces a ranked posterior across 16 fault hypotheses, a safety verdict, and the next best measurement to take, shown on an animated instrument cluster (confidence gauge, live 6-critic tribunal, animated NEMA outlet-physics SVG with phantom-voltage / fritting / reversed-polarity visualization).
+- **Spatial floor-plan editor** — draw rectangular rooms, place outlets on walls (touch + mouse), tap to measure; outlet rings are colour-coded by verdict, with animated cross-room **circuit current-flow traces** and a room heatmap.
+- **Whole-home intelligence rollup** — room → floor → home → circuit health (safety-asymmetric: one lethal outlet pins the home to RED), systemic-pattern detection (shared-neutral, multi-open-ground, reversed-run, era cohort), and a prioritized remediation list.
+- **Breaker panel + circuit tracer** — a visual panel board; flip a breaker, tap the outlets that lost power to auto-assign circuits.
+- **Active learning** — after an outlet is opened, record the real fault; the engine recalibrates local priors (decaying reinforcement) and surfaces calibration in a Learning view.
+- **Outlet photos** — offline, canvas-compressed faceplate/thermal/wiring evidence per outlet.
+- **AI second opinion** — one-tap "copy report → Claude" (works offline, no key) plus an optional live API call. Advisory only; it never overrides the deterministic safety verdict.
+- **Offline-first PWA, phone + desktop** — service worker precaches the shell; every diagnostic runs client-side. No data leaves the device. Honours `prefers-reduced-motion`; a top-level error boundary keeps a single view crash from taking down the app.
+- **Deterministic Bayesian engine** — 16 fault hypotheses with per-era base priors, Gaussian/special likelihoods, 6 critic agents, and safety-asymmetric tribunal verdicts — dependency-free and importable from any environment.
 
 ---
 
@@ -41,8 +44,11 @@ src/
   ai/          Optional AI second-opinion (network-gated, gracefully degrades).
   adapters/    Bridge types for export/import and external integrations.
 
-dyno/          Vitest safety harness — deterministic golden-value tests for all
-               16 fault signatures, tribunal verdicts, and safety-gate logic.
+dyno/          Vitest harness (68 tests): deterministic golden-value tests for
+               the 16 fault signatures, the LIVE_CASE, 100% lethal safety-recall
+               across partial measurements, calibration/top-1, engine hardening,
+               plus jsdom app-runtime integration tests (mounts the real app,
+               renders every tab, drives the store) and a render smoke test.
 
 schema/        home-export.schema.json — JSON Schema (draft 2020-12) for the
                HomeExportDoc wire format.

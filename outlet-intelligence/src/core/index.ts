@@ -5,6 +5,7 @@
    ════════════════════════════════════════════════════════════════════════════ */
 export * from "./types";
 export * from "./spatial";
+export { EXPORT_VERSION } from "./spatial";
 export { FAULTS, FK, LETHAL_FAULTS, validateFaults } from "./faults";
 export { PHYSICS, INFERENCE, BEHAVIOR, CRITICS, CONFIDENCE, PROGNOSIS, NBT } from "./config";
 export { gaussLik, gcontLik, num, hasValue, normalize, entropy, topN } from "./likelihood";

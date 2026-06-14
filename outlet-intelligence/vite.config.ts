@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["dyno/**/*.test.ts", "src/**/*.test.ts"],
+    include: ["dyno/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
     testTimeout: 30_000,
   },
 });

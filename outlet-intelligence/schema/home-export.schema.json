@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outlet-intelligence.app/schema/home-export.schema.json",
+  "title": "HomeExportDoc",
+  "description": "Full export document for an Outlet Intelligence home — floors, rooms, circuits, outlets and their diagnostic inference.",
+  "type": "object",
+  "required": ["exportVersion", "exportedAt", "home", "floors", "rooms", "circuits", "outlets"],
+  "additionalProperties": false,
+  "properties": {
+    "exportVersion": {
+      "type": "number",
+      "description": "Integer schema version; increment on breaking changes.",
+      "minimum": 1
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of export."
+    },
+    "engineVersion": {
+      "type": "string",
+      "description": "Semantic version of the diagnostic engine that produced the inference data.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "home": {
+      "$ref": "#/$defs/Home"
+    },
+    "floors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Floor" }
+    },
+    "rooms": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Room" }
+    },
+    "circuits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Circuit" }
+    },
+    "outlets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Outlet" }
+    }
+  },
+  "$defs": {
+    "Home": {
+      "type": "object",
+      "required": ["id", "name", "defaultMeta", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "address": { "type": "string" },
+        "yearBuilt": { "type": "integer", "minimum": 1800, "maximum": 2100 },
+        "defaultMeta": { "$ref": "#/$defs/Meta" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Floor": {
+      "type": "object",
+      "required": ["id", "homeId", "level", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "homeId": { "type": "string", "format": "uuid" },
+        "level": { "type": "integer", "description": "0 = ground, negative = basement, positive = upper floors." },
+        "name": { "type": "string", "minLength": 1 },
+        "planImageUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Room": {
+      "type": "object",
+      "required": ["id", "floorId", "name", "width_m", "depth_m", "floorOffset"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "floorId": { "type": "string", "format": "uuid" },
+        "name": { "type": "string", "minLength": 1 },
+        "width_m": { "type": "number", "exclusiveMinimum": 0 },
+        "depth_m": { "type": "number", "exclusiveMinimum": 0 },
+        "floorOffset": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Circuit": {
+      "type": "object",
+      "required": ["id", "homeId", "breakerLabel", "breakerSlot", "ampRating", "voltage", "isSharedNeutral"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "homeId": { "type": "string", "format": "uuid" },
+        "breakerLabel": { "type": "string", "minLength": 1 },
+        "breakerSlot": { "type": "integer", "minimum": 1 },
+        "ampRating": { "type": "number", "exclusiveMinimum": 0 },
+        "voltage": { "type": "number", "exclusiveMinimum": 0 },
+        "isSharedNeutral": { "type": "boolean" },
+        "notes": { "type": "string" }
+      }
+    },
+    "Outlet": {
+      "type": "object",
+      "required": ["id", "roomId", "label", "type", "position", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "roomId": { "type": "string", "format": "uuid" },
+        "circuitId": { "type": ["string", "null"], "format": "uuid" },
+        "label": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["duplex", "GFCI", "AFCI", "GFCI+AFCI", "USB", "240V", "other"]
+        },
+        "position": {
+          "type": "object",
+          "required": ["wallId", "offset"],
+          "additionalProperties": false,
+          "properties": {
+            "wallId": { "type": "string" },
+            "offset": { "type": "number", "minimum": 0 },
+            "height_m": { "type": "number", "minimum": 0 }
+          }
+        },
+        "observation": {
+          "oneOf": [
+            { "$ref": "#/$defs/Observation" },
+            { "type": "null" }
+          ]
+        },
+        "inference": {
+          "oneOf": [
+            { "$ref": "#/$defs/Inference" },
+            { "type": "null" }
+          ]
+        },
+        "photos": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Meta": {
+      "type": "object",
+      "required": ["era", "wireMat", "meter", "meterZ"],
+      "additionalProperties": false,
+      "properties": {
+        "era": {
+          "type": "string",
+          "enum": ["Pre-1990", "1990-2000", "2000-2010", "2010+", "Unknown"]
+        },
+        "wireMat": {
+          "type": "string",
+          "enum": ["Copper", "Aluminum", "Unknown"]
+        },
+        "meter": { "type": "string", "minLength": 1 },
+        "meterZ": { "type": "number", "exclusiveMinimum": 0 },
+        "gauge": { "type": "string" },
+        "topology": { "type": "string" },
+        "boxType": { "type": "string" }
+      }
+    },
+    "Observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "VHN":             { "type": ["number", "string", "null"] },
+        "VHG":             { "type": ["number", "string", "null"] },
+        "VNG":             { "type": ["number", "string", "null"] },
+        "VHG_loz":         { "type": ["number", "string", "null"] },
+        "VNG_loz":         { "type": ["number", "string", "null"] },
+        "vhnLoaded":       { "type": ["number", "string", "null"] },
+        "vngLoaded":       { "type": ["number", "string", "null"] },
+        "dropV":           { "type": ["number", "string", "null"] },
+        "loadW":           { "type": ["number", "string", "null"] },
+        "Gcont":           { "type": ["number", "string", "null"] },
+        "frittingObs":     { "type": ["boolean", "null"] },
+        "thermalSlot":     { "type": ["string", "null"] },
+        "wiggleObs":       { "type": ["boolean", "null"] },
+        "afciTrip":        { "type": ["boolean", "null"] },
+        "gfciTrip":        { "type": ["boolean", "null"] },
+        "hasGroundWire":   { "type": ["boolean", "null"] },
+        "groundRefTested": { "type": ["boolean", "null"] },
+        "bootlegRuledOut": { "type": ["boolean", "null"] },
+        "hasGroundWireLoaded": { "type": ["boolean", "null"] },
+        "reversePolarity": { "type": ["boolean", "null"] }
+      }
+    },
+    "Inference": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "TribunalResult snapshot — posterior map, verdict, confidence, and critic votes.",
+      "properties": {
+        "verdictCode": {
+          "type": "string",
+          "enum": ["SAFETY HOLD", "PASS", "CONDEMN", "DEFECT", "MINOR", "INCONCLUSIVE"]
+        },
+        "verdict":     { "type": "string" },
+        "confidence":  { "type": "number", "minimum": 0, "maximum": 1 },
+        "topFault":    { "type": "string" },
+        "hold":        { "type": "boolean" },
+        "engineVersion": { "type": "string" }
+      }
+    }
+  }
+}

@@ -87,6 +87,19 @@ export interface HomeModel {
   outlets: OutletNode[];
 }
 
+/** Portable, version-stamped interchange unit (export/import + dashboard seam). */
+export const EXPORT_VERSION = 2;
+export interface HomeExportDoc {
+  exportVersion: number;
+  exportedAt: string;
+  engineVersion: string;
+  home: HomeNode;
+  floors: FloorNode[];
+  rooms: RoomNode[];
+  circuits: CircuitNode[];
+  outlets: OutletNode[];
+}
+
 // ─── Health / rollup result types ─────────────────────────────────────────────
 export type Grade = "GREEN" | "YELLOW" | "AMBER" | "RED";
 

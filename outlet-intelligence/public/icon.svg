@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Dark rounded-square background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#16161A"/>
+
+  <!-- Duplex outlet face: two rectangular slots (hot/neutral pairs) -->
+  <!-- Left slot group -->
+  <rect x="128" y="176" width="26" height="52" rx="6" ry="6" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+  <rect x="170" y="176" width="26" height="52" rx="6" ry="6" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+
+  <!-- Right slot group -->
+  <rect x="316" y="176" width="26" height="52" rx="6" ry="6" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+  <rect x="358" y="176" width="26" height="52" rx="6" ry="6" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+
+  <!-- Left ground hole (round) -->
+  <circle cx="183" cy="292" r="18" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+
+  <!-- Right ground hole (round) -->
+  <circle cx="371" cy="292" r="18" fill="#0A0A0C" stroke="#F59E0B" stroke-width="6"/>
+
+  <!-- Center divider plate outline (duplex faceplate) -->
+  <rect x="110" y="148" width="132" height="184" rx="18" ry="18" fill="none" stroke="#F59E0B" stroke-width="7"/>
+  <rect x="270" y="148" width="132" height="184" rx="18" ry="18" fill="none" stroke="#F59E0B" stroke-width="7"/>
+
+  <!-- Amber lightning bolt accent (center bottom, diagnostic badge) -->
+  <polygon points="256,358 236,410 254,400 244,448 272,396 252,406" fill="#F59E0B"/>
+</svg>

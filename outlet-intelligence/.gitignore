@@ -6,5 +6,5 @@ dist-single/
 .vite/
 coverage/
 
-# built single-file test artifact
-outlet-intelligence/outlet-intelligence.html
+# NOTE: outlet-intelligence.html is the committed single-file test build
+# (kept tracked so it can be opened directly or served via a CDN link).

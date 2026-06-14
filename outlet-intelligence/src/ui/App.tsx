@@ -11,14 +11,19 @@ import { AtlasView } from "./views/AtlasView";
 import { PrognosisView } from "./views/PrognosisView";
 import { ReferenceView } from "./views/ReferenceView";
 import { SettingsView } from "./views/SettingsView";
+import { PanelView } from "./views/PanelView";
+import { LearningView } from "./views/LearningView";
 
-type TabId = "home" | "map" | "diagnose" | "atlas" | "prognosis" | "ref" | "settings";
+type TabId = "home" | "map" | "diagnose" | "panel" | "atlas" | "prognosis" | "learning" | "ref" | "settings";
+const PRIMARY: TabId[] = ["home", "map", "diagnose", "panel", "settings"];
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "home", label: "Home", icon: "🏠" },
   { id: "map", label: "Map", icon: "🗺️" },
   { id: "diagnose", label: "Diagnose", icon: "🧠" },
+  { id: "panel", label: "Panel", icon: "🔌" },
   { id: "atlas", label: "Atlas", icon: "📚" },
   { id: "prognosis", label: "Prognosis", icon: "📉" },
+  { id: "learning", label: "Learning", icon: "🎓" },
   { id: "ref", label: "Reference", icon: "📖" },
   { id: "settings", label: "Settings", icon: "⚙️" },
 ];
@@ -68,15 +73,17 @@ export function App() {
         {tab === "home" && <HomeDashboardView health={health!} onGoMap={() => setTab("map")} />}
         {tab === "map" && <FloorplanView onDiagnose={() => setTab("diagnose")} />}
         {tab === "diagnose" && <InferenceView />}
+        {tab === "panel" && <PanelView />}
         {tab === "atlas" && <AtlasView />}
         {tab === "prognosis" && <PrognosisView />}
+        {tab === "learning" && <LearningView />}
         {tab === "ref" && <ReferenceView />}
         {tab === "settings" && <SettingsView />}
       </main>
 
       {/* mobile bottom nav */}
       <nav className="botnav" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#0F0F12ee", backdropFilter: "blur(8px)", borderTop: `1px solid ${C.border}`, display: "none", justifyContent: "space-around", padding: "6px 4px 8px", zIndex: 30 }}>
-        {TABS.filter((t) => t.id !== "ref").map((t) => (
+        {TABS.filter((t) => PRIMARY.includes(t.id)).map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{ background: "none", border: "none", color: tab === t.id ? C.amber : C.dim, fontSize: 10, fontFamily: mono, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 6px" }}>
             <span style={{ fontSize: 18 }}>{t.icon}</span>{t.label}
           </button>
@@ -84,8 +91,8 @@ export function App() {
       </nav>
 
       <style>{`
+        .topnav::-webkit-scrollbar { height: 0; }
         @media (max-width: 720px) {
-          .topnav { display: none !important; }
           .botnav { display: flex !important; }
         }
       `}</style>

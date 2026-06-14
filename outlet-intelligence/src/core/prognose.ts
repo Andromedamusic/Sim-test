@@ -7,7 +7,10 @@ import { PHYSICS, PROGNOSIS } from "./config";
 import type { PrognoseResult } from "./types";
 
 export function prognose(R_term: number, loadA: number, ambientC: number): PrognoseResult {
-  const P = loadA * loadA * R_term;
+  // Guard: negative or NaN R_term (invalid sensor data) must never produce
+  // negative P or a misleadingly-cool Tterm that masks a real hazard.
+  const R = Math.max(0, Number.isFinite(R_term) ? R_term : 0);
+  const P = loadA * loadA * R;
   const Tterm = ambientC + P * PHYSICS.RTH_TERM;
 
   const Tk = Tterm + 273.15;

@@ -32,10 +32,25 @@ export function gaussLik(obs: Reading, mean: number, sigma: number): number {
   return Math.exp(-0.5 * z * z) + INFERENCE.GAUSS_FLOOR;
 }
 
-/** Log-domain continuity likelihood (resistances span many decades). */
+/**
+ * Log-domain continuity likelihood (resistances span many decades).
+ *
+ * OL/Infinity handling: an OL reading on a DMM means "open circuit" — the true
+ * resistance is effectively at or beyond the meter's range (>≈200 MΩ).  The
+ * fault signatures that describe an open-circuit condition use BIG (1e9 Ω) as
+ * their expected mean.  Numerically, Infinity - eg = Infinity → exp(-∞) = 0,
+ * so OL would always return the bare GCONT_FLOOR regardless of the fault's mean,
+ * making it impossible to distinguish "fault expects OL" from "fault expects low
+ * resistance."  Clamping Infinity to BIG restores the proper log-domain distance:
+ *   gcontLik(OL, BIG)  → z≈0  → high likelihood  (matches open-circuit fault)
+ *   gcontLik(OL, 0.5)  → z large → low likelihood (open DMM vs healthy contact)
+ */
 export function gcontLik(obs: Reading, mean: number): number {
-  const o = num(obs);
+  let o = num(obs);
   if (o === null) return 1; // no info
+  // Clamp OL/Infinity to BIG so log-domain distance is computable and
+  // open-circuit faults (sig.Gcont=[BIG,1]) score correctly against OL.
+  if (!isFinite(o)) o = 1e9; // BIG
   const og = Math.log10(Math.max(o, 0.01));
   const eg = Math.log10(Math.max(mean, 0.01));
   const zz = (og - eg) / INFERENCE.GCONT_LOG_SIGMA;

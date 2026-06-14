@@ -8,11 +8,16 @@ import {
   tribunal, analyzeOutlet,
   type Observation, type Meta, type HomeModel, type OutletNode, type RoomNode,
   type FloorNode, type CircuitNode, type OutletPosition, type OutletType, type HomeExportDoc,
+  type PhotoRef,
 } from "../core";
 import * as S from "../data/storage";
 import { db, requestPersistence } from "../data/db";
 
 const LIVE_CASE: Observation = { VHN: "116", VHG: "15", VNG: "0.5", Gcont: "0.3", frittingObs: true, thermalSlot: "none" };
+
+function clampScale(v: number): number {
+  return Math.max(0.3, Math.min(5, v));
+}
 
 interface AppState {
   ready: boolean;
@@ -23,6 +28,12 @@ interface AppState {
   scratchObs: Observation;
   scratchMeta: Meta;
   rev: number; // bump to force rollup recompute consumers
+
+  /** Active-learning: per-fault prior multipliers from recorded ground truths. */
+  priorScale: Record<string, number>;
+
+  /** Circuit tracer: which circuit is being traced right now (null = idle). */
+  tracerCircuitId: string | null;
 
   init: () => Promise<void>;
   reloadModel: (homeId?: string) => Promise<void>;
@@ -48,6 +59,22 @@ interface AppState {
   loadLiveCase: () => void;
 
   importDoc: (doc: HomeExportDoc) => Promise<void>;
+
+  // ── Active-learning ────────────────────────────────────────────────────────
+  /** Record a ground-truth correction, update learned priors, re-run engine. */
+  recordGroundTruth: (outletId: string, actualFaultId: string, note?: string) => Promise<void>;
+  /** Wipe all learned priors back to factory defaults. */
+  resetLearning: () => Promise<void>;
+
+  // ── Photo management ───────────────────────────────────────────────────────
+  addOutletPhoto: (outletId: string, dataUrl: string, caption?: string) => Promise<void>;
+  removeOutletPhoto: (outletId: string, photoId: string) => Promise<void>;
+
+  // ── Circuit tracer ─────────────────────────────────────────────────────────
+  startTracer: (circuitId: string) => void;
+  stopTracer: () => void;
+  /** Assign the outlet to the currently-active tracer circuit (no-op if none). */
+  assignOutletToTracer: (outletId: string) => Promise<void>;
 }
 
 function replaceOutlet(model: HomeModel, o: OutletNode): HomeModel {
@@ -64,12 +91,17 @@ export const useStore = create<AppState>((set, get) => ({
   scratchObs: LIVE_CASE,
   scratchMeta: { ...S.DEFAULT_META },
   rev: 0,
+  priorScale: {},
+  tracerCircuitId: null,
 
   init: async () => {
     requestPersistence();
-    const model = await S.ensureDefaultHome();
+    const [model, priorScale] = await Promise.all([
+      S.ensureDefaultHome(),
+      S.getSetting<Record<string, number>>("priorScale", {}),
+    ]);
     set({
-      model, ready: true,
+      model, ready: true, priorScale,
       activeFloorId: model.floors[0]?.id ?? null,
       scratchMeta: { ...model.home.defaultMeta },
     });
@@ -161,7 +193,7 @@ export const useStore = create<AppState>((set, get) => ({
     const outlet = model.outlets.find((o) => o.id === id);
     if (!outlet) return;
     const meta: Meta = { ...model.home.defaultMeta, ...outlet.metaOverride, ...metaOverride };
-    const inference = tribunal(obs, meta);
+    const inference = tribunal(obs, meta, { priorScale: get().priorScale });
     const updated: OutletNode = { ...outlet, observation: obs, inference, metaOverride: { ...outlet.metaOverride, ...metaOverride }, updatedAt: S.nowISO() };
     await S.putOutlet(updated);
     set((s) => ({ model: replaceOutlet(s.model!, updated), rev: s.rev + 1 }));
@@ -175,6 +207,58 @@ export const useStore = create<AppState>((set, get) => ({
     const homeId = await S.importHome(doc);
     await get().reloadModel(homeId);
     set({ activeFloorId: get().model?.floors[0]?.id ?? null });
+  },
+
+  // ── Active-learning ──────────────────────────────────────────────────────
+  recordGroundTruth: async (outletId, actualFaultId, note) => {
+    const st = get();
+    const model = st.model!;
+    const outlet = model.outlets.find((o) => o.id === outletId);
+    if (!outlet) return;
+    const predicted = outlet.inference?.topFault ?? "";
+    await S.addFeedback({ outletId, predictedFault: predicted, actualFault: actualFaultId, note: note ?? "" });
+    const prev = st.priorScale;
+    const next: Record<string, number> = { ...prev };
+    next[actualFaultId] = clampScale((prev[actualFaultId] ?? 1) * 1.18);
+    await S.setSetting("priorScale", next);
+    set({ priorScale: next });
+    // Re-run engine so the outlet's cached inference reflects new priors immediately
+    if (outlet.observation) {
+      await get().measureOutlet(outletId, outlet.observation);
+    }
+  },
+
+  resetLearning: async () => {
+    await S.setSetting("priorScale", {});
+    set({ priorScale: {} });
+  },
+
+  // ── Photo management ─────────────────────────────────────────────────────
+  addOutletPhoto: async (outletId, dataUrl, caption) => {
+    const model = get().model!;
+    const outlet = model.outlets.find((o) => o.id === outletId);
+    if (!outlet) return;
+    const photo: PhotoRef = { id: S.uid(), dataUrl, caption, takenAt: S.nowISO() };
+    await get().updateOutlet({ ...outlet, photos: [...outlet.photos, photo] });
+  },
+
+  removeOutletPhoto: async (outletId, photoId) => {
+    const model = get().model!;
+    const outlet = model.outlets.find((o) => o.id === outletId);
+    if (!outlet) return;
+    await get().updateOutlet({ ...outlet, photos: outlet.photos.filter((p) => p.id !== photoId) });
+  },
+
+  // ── Circuit tracer ───────────────────────────────────────────────────────
+  startTracer: (circuitId) => set({ tracerCircuitId: circuitId }),
+  stopTracer: () => set({ tracerCircuitId: null }),
+  assignOutletToTracer: async (outletId) => {
+    const st = get();
+    if (!st.tracerCircuitId) return;
+    const model = st.model!;
+    const outlet = model.outlets.find((o) => o.id === outletId);
+    if (!outlet) return;
+    await get().updateOutlet({ ...outlet, circuitId: st.tracerCircuitId });
   },
 }));
 

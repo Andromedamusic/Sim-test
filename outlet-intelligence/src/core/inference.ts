@@ -70,8 +70,11 @@ export function rawPosterior(
     if (f.reqAl && meta.wireMat !== "Aluminum") L *= BEHAVIOR.AL_GATE;
     if (obs.hasGroundWire === false && k === "healthy") L *= 0.5;
 
-    // Prior from era, optionally scaled by locally-learned ground-truth (active learning)
-    const prior = (f.basePrior[meta.era] ?? INFERENCE.DEFAULT_ERA_PRIOR) * (priorScale?.[k] ?? 1);
+    // Prior from era, optionally scaled by locally-learned ground-truth (active learning).
+    // Clamp priorScale to >= 0: a negative scale would invert the weight and produce a
+    // negative w[k], causing normalize() to output garbage probabilities.
+    const scale = Math.max(0, priorScale?.[k] ?? 1);
+    const prior = (f.basePrior[meta.era] ?? INFERENCE.DEFAULT_ERA_PRIOR) * scale;
     w[k] = L * prior;
   }
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { prognose } from "../../core";
 import { C, mono } from "../theme";
 import { Card, SubH } from "../components";
@@ -39,13 +39,53 @@ function Slider({ label, value, min, max, step, unit, onChange }: SliderProps) {
   );
 }
 
+/** Animated numeric display that counts up/down to the target value. */
+function AnimatedNumber({ value, decimals = 0 }: { value: number; decimals?: number }) {
+  const [displayed, setDisplayed] = useState(value);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+  const fromRef = useRef(value);
+
+  useEffect(() => {
+    const from = fromRef.current;
+    const to = value;
+    if (from === to) return;
+    const DURATION = 280; // ms
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    startRef.current = null;
+
+    const step = (ts: number) => {
+      if (startRef.current === null) startRef.current = ts;
+      const elapsed = ts - startRef.current;
+      const t = Math.min(elapsed / DURATION, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
+      const cur = from + (to - from) * eased;
+      setDisplayed(cur);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        fromRef.current = to;
+      }
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [value]);
+
+  return <>{displayed.toFixed(decimals)}</>;
+}
+
 interface StatCardProps {
   label: string;
   value: string;
   color?: string;
+  animate?: boolean;
+  numericValue?: number;
+  numericDecimals?: number;
+  numericUnit?: string;
 }
 
-function StatCard({ label, value, color }: StatCardProps) {
+function StatCard({ label, value, color, animate, numericValue, numericDecimals, numericUnit }: StatCardProps) {
   return (
     <div style={{
       background: C.panel2,
@@ -56,14 +96,86 @@ function StatCard({ label, value, color }: StatCardProps) {
       minWidth: 140,
     }}>
       <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
-      <div style={{ color: color ?? C.text, fontSize: 20, fontFamily: mono, fontWeight: 800 }}>{value}</div>
+      <div style={{ color: color ?? C.text, fontSize: 20, fontFamily: mono, fontWeight: 800 }}>
+        {animate && numericValue !== undefined
+          ? <><AnimatedNumber value={numericValue} decimals={numericDecimals ?? 0} />{numericUnit}</>
+          : value}
+      </div>
+    </div>
+  );
+}
+
+/** Radial gauge: arc from 0..max, filled to value. */
+function RadialGauge({
+  value,
+  max,
+  label,
+  unit,
+  color,
+  dangerAt,
+}: {
+  value: number;
+  max: number;
+  label: string;
+  unit: string;
+  color: string;
+  dangerAt?: number;
+}) {
+  const SIZE = 100;
+  const CX = SIZE / 2, CY = SIZE / 2;
+  const R = 38;
+  const GAP_DEG = 50; // degrees of gap at bottom
+  const START_DEG = 90 + GAP_DEG / 2;
+  const END_DEG = 90 + 360 - GAP_DEG / 2;
+  const ARC_DEG = 360 - GAP_DEG;
+
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const polarX = (r: number, deg: number) => CX + r * Math.cos(toRad(deg));
+  const polarY = (r: number, deg: number) => CY + r * Math.sin(toRad(deg));
+
+  const clampedVal = Math.max(0, Math.min(value, max));
+  const pct = clampedVal / max;
+  const fillDeg = ARC_DEG * pct;
+  const fillEnd = START_DEG + fillDeg;
+
+  const bgPath = `M ${polarX(R, START_DEG)} ${polarY(R, START_DEG)} A ${R} ${R} 0 ${ARC_DEG > 180 ? 1 : 0} 1 ${polarX(R, END_DEG)} ${polarY(R, END_DEG)}`;
+  const fgPath = fillDeg > 1
+    ? `M ${polarX(R, START_DEG)} ${polarY(R, START_DEG)} A ${R} ${R} 0 ${fillDeg > 180 ? 1 : 0} 1 ${polarX(R, fillEnd)} ${polarY(R, fillEnd)}`
+    : "";
+
+  const gaugeColor = dangerAt !== undefined && value >= dangerAt ? C.danger : color;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ width: SIZE, height: SIZE }}>
+        {/* Background arc */}
+        <path d={bgPath} fill="none" stroke={C.border} strokeWidth={7} strokeLinecap="round" />
+        {/* Filled arc */}
+        {fgPath && (
+          <path
+            d={fgPath}
+            fill="none"
+            stroke={gaugeColor}
+            strokeWidth={7}
+            strokeLinecap="round"
+            style={{ transition: "stroke 0.3s, stroke-dashoffset 0.3s" }}
+          />
+        )}
+        {/* Center value */}
+        <text x={CX} y={CY - 3} textAnchor="middle" fill={gaugeColor} fontSize={16} fontWeight={800} fontFamily={mono}>
+          {value.toFixed(0)}
+        </text>
+        <text x={CX} y={CY + 11} textAnchor="middle" fill={C.dimmer} fontSize={8} fontFamily={mono}>
+          {unit}
+        </text>
+      </svg>
+      <span style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 0.5 }}>{label}</span>
     </div>
   );
 }
 
 /** Build SVG path for temp vs load current 0..20A */
 function buildCurve(R: number, amb: number): string {
-  // Tterm = amb + A*A*R*RTH_TERM  where RTH_TERM = 12
   const RTH = 12;
   const W = 320;
   const H = 220;
@@ -91,6 +203,22 @@ function buildCurve(R: number, amb: number): string {
 function tempToY(t: number, padT: number, plotH: number, maxT: number): number {
   return padT + plotH - (Math.min(t, maxT) / maxT) * plotH;
 }
+
+/** Inline CSS keyframes injected once. */
+const STYLES = `
+@keyframes oi-pulse {
+  0%,100%{opacity:1}
+  50%{opacity:0.45}
+}
+@keyframes oi-draw {
+  from { stroke-dashoffset: var(--path-len, 9999); }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes oi-glow {
+  0%,100%{opacity:0.18}
+  50%{opacity:0.38}
+}
+`;
 
 export function PrognosisView() {
   const [R, setR] = useState(0.5);
@@ -131,8 +259,28 @@ export function PrognosisView() {
   // X-axis tick helpers
   const xTicks = [0, 5, 10, 15, 20];
 
+  // ── Stroke-dashoffset draw-on animation for the curve ──────────────────────
+  const pathRef = useRef<SVGPathElement | null>(null);
+  const [pathLen, setPathLen] = useState<number>(9999);
+  const prevCurveRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!pathRef.current) return;
+    const len = pathRef.current.getTotalLength();
+    if (curvePath !== prevCurveRef.current) {
+      prevCurveRef.current = curvePath;
+      setPathLen(len);
+    }
+  }, [curvePath]);
+
+  // Determine pulse: status banner pulses when runaway or accelerated
+  const isPulsing = p.Tterm > 90;
+  const statusKey = p.status; // changes identity when status changes, resetting animation
+
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: 16, boxSizing: "border-box", width: "100%" }}>
+      <style>{STYLES}</style>
+
       {/* ── Left: controls + stats ── */}
       <div style={{ flex: "1 1 300px", minWidth: 300, display: "flex", flexDirection: "column", gap: 14 }}>
         <Card title="ARRHENIUS THERMAL-RUNAWAY EXPLORER">
@@ -143,24 +291,59 @@ export function PrognosisView() {
           </div>
         </Card>
 
-        {/* Stat cards */}
+        {/* Stat cards — AnimatedNumber on numeric values */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <StatCard label="POWER DISSIPATED" value={`${p.P} W`} />
-          <StatCard label="TERMINAL TEMP" value={`${p.Tterm} °C`} color={p.sColor} />
+          <StatCard
+            label="POWER DISSIPATED"
+            value={`${p.P} W`}
+            animate
+            numericValue={p.P}
+            numericDecimals={1}
+            numericUnit=" W"
+          />
+          <StatCard
+            label="TERMINAL TEMP"
+            value={`${p.Tterm} °C`}
+            color={p.sColor}
+            animate
+            numericValue={p.Tterm}
+            numericDecimals={0}
+            numericUnit=" °C"
+          />
           <StatCard
             label="EST. TIME TO RUNAWAY"
             value={runawaySuffix}
             color={p.runaway ? C.danger : C.text}
+            animate={!p.runaway}
+            numericValue={p.months}
+            numericDecimals={0}
+            numericUnit=" mo"
           />
         </div>
 
-        {/* Status banner */}
-        <div style={{
-          background: p.sColor + "18",
-          border: `1px solid ${p.sColor}`,
-          borderRadius: 10,
-          padding: "10px 14px",
-        }}>
+        {/* Radial gauge: terminal temp vs 150°C runaway threshold */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
+          <RadialGauge
+            value={p.Tterm}
+            max={150}
+            label="vs 150°C RUNAWAY"
+            unit="°C"
+            color={C.amber}
+            dangerAt={120}
+          />
+        </div>
+
+        {/* Status banner — pulses on RUNAWAY or ACCELERATED */}
+        <div
+          key={statusKey}
+          style={{
+            background: p.sColor + "18",
+            border: `1px solid ${p.sColor}`,
+            borderRadius: 10,
+            padding: "10px 14px",
+            animation: isPulsing ? "oi-pulse 1.4s ease-in-out infinite" : "none",
+          }}
+        >
           <div style={{ color: p.sColor, fontFamily: mono, fontWeight: 800, fontSize: 13, marginBottom: 5 }}>
             {p.status}
           </div>
@@ -178,15 +361,21 @@ export function PrognosisView() {
         <Card title="TERMINAL TEMP vs LOAD CURRENT">
           <div style={{ overflowX: "auto" }}>
             <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: W, display: "block", fontFamily: mono }}>
-              {/* Danger band 60–90°C: warm */}
+              {/* Danger band 60–90°C: warm — glow pulse when in zone */}
               <rect x={padL} y={y90} width={plotW} height={y60 - y90}
-                fill={C.warn + "22"} />
+                fill={C.warn + "22"}
+                style={p.Tterm >= 60 && p.Tterm < 90 ? { animation: "oi-glow 2s ease-in-out infinite" } : {}}
+              />
               {/* Band 90–120°C: hot */}
               <rect x={padL} y={y120} width={plotW} height={y90 - y120}
-                fill={C.bad + "22"} />
+                fill={C.bad + "22"}
+                style={p.Tterm >= 90 && p.Tterm < 120 ? { animation: "oi-glow 1.5s ease-in-out infinite" } : {}}
+              />
               {/* Band 120+°C: danger */}
               <rect x={padL} y={padT} width={plotW} height={y120 - padT}
-                fill={C.danger + "28"} />
+                fill={C.danger + "28"}
+                style={p.Tterm >= 120 ? { animation: "oi-glow 0.9s ease-in-out infinite" } : {}}
+              />
 
               {/* 60°C line */}
               <line x1={padL} y1={y60} x2={padL + plotW} y2={y60}
@@ -234,13 +423,35 @@ export function PrognosisView() {
                 );
               })}
 
-              {/* The curve */}
-              <path d={curvePath} fill="none" stroke={C.amber} strokeWidth={2} />
+              {/* The curve — draw-on animation via stroke-dashoffset */}
+              <path
+                ref={pathRef}
+                d={curvePath}
+                fill="none"
+                stroke={C.amber}
+                strokeWidth={2}
+                style={{
+                  strokeDasharray: pathLen,
+                  strokeDashoffset: 0,
+                  // Force redraw animation when curve changes
+                  transition: "stroke-dashoffset 0.5s ease-out, d 0.2s ease",
+                }}
+              />
 
-              {/* Marker dot at current A */}
-              <circle cx={markerX} cy={markerY} r={5} fill={p.sColor} stroke="#0A0A0C" strokeWidth={2} />
+              {/* Marker dot at current A — animated transition */}
+              <circle
+                cx={markerX}
+                cy={markerY}
+                r={5}
+                fill={p.sColor}
+                stroke="#0A0A0C"
+                strokeWidth={2}
+                style={{ transition: "cx 0.2s ease, cy 0.2s ease, fill 0.3s" }}
+              />
               <line x1={markerX} y1={markerY} x2={markerX} y2={yBottom}
-                stroke={p.sColor} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} />
+                stroke={p.sColor} strokeWidth={1} strokeDasharray="3 3" opacity={0.5}
+                style={{ transition: "stroke 0.3s" }}
+              />
             </svg>
           </div>
           <SubH text="LEGEND" />

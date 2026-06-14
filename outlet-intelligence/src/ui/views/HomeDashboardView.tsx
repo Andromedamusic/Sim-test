@@ -1,131 +1,342 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   HOME — the centralized intelligence model. Whole-home health grade, systemic
-   patterns, prioritized remediation, and a floor/room/circuit breakdown rolled
-   up from every measured outlet (safety-asymmetric: one lethal outlet → RED).
+   HOME — centralized intelligence model. Whole-home health, systemic patterns,
+   circuit breaker bus, room heatmap, and prioritized remediation. Composes
+   animated sub-views; honours prefers-reduced-motion throughout.
    ════════════════════════════════════════════════════════════════════════════ */
 import React from "react";
 import { useStore } from "../../state/store";
-import { FAULTS, type HomeHealth, type Grade } from "../../core";
-import { C, mono, GRADE_COLOR } from "../theme";
-import { Card, Bar, Pill } from "../components";
+import { type HomeHealth } from "../../core";
+import { C, mono } from "../theme";
+import { GlowCard, useReducedMotion } from "../anim";
+import { Card, Pill } from "../components";
+import { HealthHero } from "../viz/home/HealthHero";
+import { CircuitBus } from "../viz/home/CircuitBus";
+import { RoomHeatmap } from "../viz/home/RoomHeatmap";
 
-const URGENCY_COLOR: Record<string, string> = { IMMEDIATE: C.danger, SOON: C.warn, PLANNED: C.dim };
+const URGENCY_COLOR: Record<string, string> = {
+  IMMEDIATE: C.danger,
+  SOON: C.warn,
+  PLANNED: C.dim,
+};
+
+const RANK_MEDAL: Record<number, { bg: string; color: string; label: string }> = {
+  1: { bg: "#2D2200", color: "#F59E0B", label: "🥇" },
+  2: { bg: "#1C1C1C", color: "#D1D5DB", label: "🥈" },
+  3: { bg: "#1C1200", color: "#D97706", label: "🥉" },
+};
 
 export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onGoMap: () => void }) {
   const { model } = useStore();
+  const reduced = useReducedMotion();
   if (!model) return null;
-  const roomName = (id: string) => model.rooms.find((r) => r.id === id)?.name ?? id;
-  const circuitName = (id: string) => model.circuits.find((c) => c.id === id)?.breakerLabel ?? id;
+
+  const roomName = (id: string) =>
+    model.rooms.find((r) => r.id === id)?.name ?? id;
+  const floorName = (id: string) =>
+    model.floors.find((f) => f.id === id)?.name ?? "Floor";
+  const circuitName = (id: string) =>
+    model.circuits.find((c) => c.id === id)?.breakerLabel ?? id;
+
   const placed = model.outlets.length;
   const measured = model.outlets.filter((o) => o.inference).length;
 
-  return (
-    <div style={{ display: "grid", gap: 12 }}>
-      {/* hero */}
-      <div style={{ background: health.safetyHold ? "#1A0606" : C.panel, border: `2px solid ${GRADE_COLOR[health.grade]}`, borderRadius: 14, padding: 16, boxShadow: `0 0 28px ${GRADE_COLOR[health.grade]}22` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, letterSpacing: 1 }}>WHOLE-HOME ELECTRICAL HEALTH</div>
-            <div style={{ color: GRADE_COLOR[health.grade], fontSize: 30, fontWeight: 800, fontFamily: mono, lineHeight: 1.1 }}>
-              {health.safetyHold ? "⚠ SAFETY HOLD" : health.grade}
-            </div>
-            <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, marginTop: 2 }}>risk index {(health.risk * 100).toFixed(0)} / 100</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: C.dim, fontSize: 10, fontFamily: mono }}>inspection coverage</div>
-            <div style={{ color: C.text, fontSize: 20, fontFamily: mono, fontWeight: 700 }}>{measured}/{placed}</div>
-            <div style={{ width: 120, marginTop: 4 }}><Bar pct={health.inspectionCoverage * 100} color={C.blue} h={6} /></div>
-          </div>
-        </div>
-        {health.safetyHold && (
-          <div style={{ marginTop: 12, background: "#260808", border: "1px solid #7F1D1D", borderRadius: 8, padding: 10, color: "#FECACA", fontSize: 11, fontFamily: mono }}>
-            {health.unclearedLethalOutletIds.length} outlet(s) cannot be cleared — a lethal mode is un-excluded. Resolve before energising high loads.
-          </div>
-        )}
-        {placed === 0 && (
-          <button onClick={onGoMap} style={{ marginTop: 12, background: C.amber, color: "#0A0A0C", border: "none", borderRadius: 8, padding: "9px 13px", fontFamily: mono, fontWeight: 800 }}>Start mapping outlets →</button>
-        )}
-      </div>
+  // Partition systemic flags by urgency for ordering
+  const immediateFlags = health.systemicFlags.filter((f) => f.urgency === "IMMEDIATE");
+  const otherFlags = health.systemicFlags.filter((f) => f.urgency !== "IMMEDIATE");
+  const orderedFlags = [...immediateFlags, ...otherFlags];
 
-      {/* systemic flags */}
-      {health.systemicFlags.length > 0 && (
-        <Card title="🔗 SYSTEMIC PATTERNS (not device-local)">
-          <div style={{ display: "grid", gap: 8 }}>
-            {health.systemicFlags.map((f, i) => (
-              <div key={i} style={{ background: "#1A1200", border: `1px solid #854D0E`, borderRadius: 8, padding: 10 }}>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                  <Pill color={URGENCY_COLOR[f.urgency]}>{f.urgency}</Pill>
-                  <span style={{ color: C.warn, fontSize: 11, fontFamily: mono, fontWeight: 700 }}>{f.type.replace(/_/g, " ")}</span>
-                  <span style={{ marginLeft: "auto", color: C.dimmer, fontSize: 9.5, fontFamily: mono }}>{f.scope === "circuit" ? circuitName(f.scopeId) : roomName(f.scopeId)}</span>
-                </div>
-                <div style={{ color: "#FDE68A", fontSize: 11, lineHeight: 1.5 }}>{f.description}</div>
-                <div style={{ color: C.dim, fontSize: 10.5, lineHeight: 1.5, marginTop: 3 }}>{f.remedy}</div>
-              </div>
-            ))}
+  return (
+    <div
+      className={reduced ? "" : "oi-stagger"}
+      style={{ display: "grid", gap: 14 }}
+    >
+      {/* ── 1. HEALTH HERO ── */}
+      <HealthHero
+        health={health}
+        onGoMap={onGoMap}
+        placed={placed}
+        measured={measured}
+      />
+
+      {/* ── 2. SYSTEMIC PATTERNS ── */}
+      {orderedFlags.length > 0 && (
+        <section className={reduced ? "" : "oi-fadeup"}>
+          <SectionHeader label="SYSTEMIC PATTERNS" sub="not device-local — wiring / circuit scope" />
+          <div
+            className={reduced ? "" : "oi-stagger"}
+            style={{ display: "grid", gap: 8 }}
+          >
+            {orderedFlags.map((f, i) => {
+              const uc = URGENCY_COLOR[f.urgency];
+              const isImmediate = f.urgency === "IMMEDIATE";
+              return (
+                <GlowCard
+                  key={i}
+                  accent={uc}
+                  className={isImmediate && !reduced ? "oi-pulse" : undefined}
+                  style={{
+                    background:
+                      isImmediate
+                        ? "linear-gradient(160deg,#1A0606cc,#100808cc)"
+                        : "linear-gradient(160deg,#1A1200cc,#101008cc)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      alignItems: "center",
+                      marginBottom: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Pill color={uc}>{f.urgency}</Pill>
+                    <span
+                      style={{
+                        color: C.warn,
+                        fontSize: 11,
+                        fontFamily: mono,
+                        fontWeight: 800,
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      {f.type.replace(/_/g, " ")}
+                    </span>
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        color: C.dimmer,
+                        fontSize: 9.5,
+                        fontFamily: mono,
+                      }}
+                    >
+                      {f.scope === "circuit"
+                        ? circuitName(f.scopeId)
+                        : roomName(f.scopeId)}
+                    </span>
+                    <span
+                      style={{
+                        color: C.dimmer,
+                        fontSize: 9,
+                        fontFamily: mono,
+                      }}
+                    >
+                      {f.outletIds.length} outlet{f.outletIds.length !== 1 ? "s" : ""}
+                      {" · "}
+                      {Math.round(f.confidence * 100)}% conf
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      color: "#FDE68A",
+                      fontSize: 11.5,
+                      lineHeight: 1.55,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {f.description}
+                  </div>
+                  <div
+                    style={{
+                      color: C.dim,
+                      fontSize: 10.5,
+                      lineHeight: 1.5,
+                      borderTop: `1px solid ${C.border}`,
+                      paddingTop: 6,
+                      marginTop: 2,
+                    }}
+                  >
+                    <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 9.5, letterSpacing: 1 }}>
+                      REMEDY{" "}
+                    </span>
+                    {f.remedy}
+                  </div>
+                </GlowCard>
+              );
+            })}
           </div>
-        </Card>
+        </section>
       )}
 
-      {/* remediation */}
-      <Card title="🛠 PRIORITIZED REMEDIATION">
-        {health.remediation.length === 0 ? <div style={{ color: C.dim, fontSize: 11 }}>No defects found yet. Measure outlets on the Map tab to populate this list.</div> :
-          health.remediation.slice(0, 12).map((it) => (
-            <div key={it.rank} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: `1px solid ${C.border}` }}>
-              <span style={{ color: URGENCY_COLOR[it.urgency], fontFamily: mono, fontWeight: 800, minWidth: 18 }}>{it.rank}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: C.text, fontSize: 11.5, fontWeight: 600 }}>{it.label}</div>
-                <div style={{ color: C.dim, fontSize: 10.5, lineHeight: 1.45 }}>{it.reason}</div>
-              </div>
-              <Pill color={URGENCY_COLOR[it.urgency]}>{it.urgency}</Pill>
-            </div>
-          ))}
-      </Card>
+      {/* ── 3. CIRCUIT BUS ── */}
+      {health.circuits.length > 0 && (
+        <section className={reduced ? "" : "oi-fadeup"}>
+          <SectionHeader
+            label="BREAKER PANEL"
+            sub={`${health.circuits.length} circuit${health.circuits.length !== 1 ? "s" : ""}`}
+          />
+          <Card style={{ background: C.panel }}>
+            <CircuitBus circuits={health.circuits} nameOf={circuitName} />
+          </Card>
+        </section>
+      )}
 
-      {/* floor / room breakdown */}
-      <Card title="🏚 FLOORS & ROOMS">
-        {health.floors.map((fl) => {
-          const floor = model.floors.find((f) => f.id === fl.floorId);
-          return (
-            <div key={fl.floorId} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <GradeDot grade={fl.grade} />
-                <span style={{ color: C.text, fontFamily: mono, fontWeight: 700, fontSize: 12 }}>{floor?.name ?? "Floor"}</span>
-                <span style={{ marginLeft: "auto", color: C.dimmer, fontFamily: mono, fontSize: 10 }}>{(fl.risk * 100).toFixed(0)}</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 6 }}>
-                {fl.rooms.map((r) => (
-                  <div key={r.roomId} style={{ background: "#0E0E12", border: `1px solid ${C.border}`, borderLeft: `3px solid ${GRADE_COLOR[r.grade]}`, borderRadius: 8, padding: "7px 9px" }}>
-                    <div style={{ color: C.text, fontSize: 11, fontFamily: mono }}>{roomName(r.roomId)}</div>
-                    <div style={{ color: C.dimmer, fontSize: 9.5, fontFamily: mono, marginTop: 2 }}>
-                      {r.outletCount} outlet{r.outletCount !== 1 ? "s" : ""}{r.unobservedCount ? ` · ${r.unobservedCount} unmeasured` : ""}
+      {/* ── 4. ROOM HEATMAP ── */}
+      {health.floors.length > 0 && (
+        <section className={reduced ? "" : "oi-fadeup"}>
+          <SectionHeader
+            label="FLOORS & ROOMS"
+            sub="grade heat by room"
+          />
+          <Card style={{ background: C.panel }}>
+            <RoomHeatmap
+              floors={health.floors}
+              roomName={roomName}
+              floorName={floorName}
+            />
+          </Card>
+        </section>
+      )}
+
+      {/* ── 5. PRIORITIZED REMEDIATION ── */}
+      <section className={reduced ? "" : "oi-fadeup"}>
+        <SectionHeader label="PRIORITIZED REMEDIATION" sub="ordered by urgency + impact" />
+        <Card style={{ background: C.panel }}>
+          {health.remediation.length === 0 ? (
+            <div style={{ color: C.dim, fontSize: 11, fontFamily: mono, textAlign: "center", padding: "16px 0" }}>
+              No defects found yet.{" "}
+              <button
+                onClick={onGoMap}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: C.blue,
+                  fontSize: 11,
+                  fontFamily: mono,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  padding: 0,
+                }}
+              >
+                Measure outlets on the Map tab
+              </button>{" "}
+              to populate this list.
+            </div>
+          ) : (
+            <div
+              className={reduced ? "" : "oi-stagger"}
+              style={{ display: "grid", gap: 0 }}
+            >
+              {health.remediation.slice(0, 12).map((it) => {
+                const uc = URGENCY_COLOR[it.urgency];
+                const medal = RANK_MEDAL[it.rank];
+                return (
+                  <div
+                    key={it.rank}
+                    className="oi-lift"
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      padding: "9px 6px",
+                      borderBottom: `1px solid ${C.border}`,
+                      alignItems: "flex-start",
+                      background: medal
+                        ? medal.bg
+                        : "transparent",
+                      borderRadius: medal ? 8 : 0,
+                      marginBottom: medal ? 2 : 0,
+                    }}
+                  >
+                    {/* rank badge */}
+                    <div
+                      style={{
+                        fontFamily: mono,
+                        fontWeight: 800,
+                        minWidth: 26,
+                        textAlign: "center",
+                        flexShrink: 0,
+                        fontSize: medal ? 15 : 12,
+                        color: medal ? medal.color : uc,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {medal ? medal.label : `#${it.rank}`}
+                    </div>
+
+                    {/* content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          color: C.text,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          marginBottom: 2,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {it.label}
+                      </div>
+                      <div
+                        style={{
+                          color: C.dim,
+                          fontSize: 10.5,
+                          lineHeight: 1.5,
+                          fontFamily: mono,
+                        }}
+                      >
+                        {it.reason}
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 9.5, color: C.dimmer, fontFamily: mono, textTransform: "capitalize" as const }}>
+                        {it.targetType.toLowerCase()}
+                      </div>
+                    </div>
+
+                    {/* urgency pill */}
+                    <div style={{ flexShrink: 0 }}>
+                      <Pill color={uc}>{it.urgency}</Pill>
                     </div>
                   </div>
-                ))}
-                {fl.rooms.length === 0 && <div style={{ color: C.dim, fontSize: 10.5 }}>No rooms on this floor yet.</div>}
-              </div>
+                );
+              })}
+              {health.remediation.length > 12 && (
+                <div
+                  style={{
+                    color: C.dimmer,
+                    fontSize: 10,
+                    fontFamily: mono,
+                    textAlign: "center",
+                    padding: "8px 0 4px",
+                  }}
+                >
+                  +{health.remediation.length - 12} more items
+                </div>
+              )}
             </div>
-          );
-        })}
-      </Card>
-
-      {/* circuits */}
-      {health.circuits.length > 0 && (
-        <Card title="⚡ CIRCUITS">
-          {health.circuits.map((c) => (
-            <div key={c.circuitId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-              <GradeDot grade={c.grade} />
-              <span style={{ color: C.text, fontSize: 11, fontFamily: mono }}>{circuitName(c.circuitId)}</span>
-              <span style={{ color: C.dimmer, fontSize: 10, fontFamily: mono }}>· {c.outletIds.length} outlets</span>
-              {c.systemicFlags.length > 0 && <span style={{ color: C.warn, fontSize: 10, fontFamily: mono }}>⚠ {c.systemicFlags.length} flag</span>}
-              <span style={{ marginLeft: "auto", color: C.dimmer, fontSize: 10, fontFamily: mono }}>{(c.risk * 100).toFixed(0)}</span>
-            </div>
-          ))}
+          )}
         </Card>
-      )}
+      </section>
     </div>
   );
 }
 
-function GradeDot({ grade }: { grade: Grade }) {
-  return <span style={{ width: 10, height: 10, borderRadius: 999, background: GRADE_COLOR[grade], flexShrink: 0, boxShadow: `0 0 8px ${GRADE_COLOR[grade]}88` }} />;
+// ─── local helpers ──────────────────────────────────────────────────────────
+
+function SectionHeader({ label, sub }: { label: string; sub?: string }) {
+  return (
+    <div style={{ marginBottom: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
+      <span
+        style={{
+          color: C.dimmer,
+          fontSize: 9,
+          fontFamily: mono,
+          fontWeight: 700,
+          letterSpacing: 2,
+        }}
+      >
+        {label}
+      </span>
+      {sub && (
+        <span
+          style={{
+            color: C.dimmer,
+            fontSize: 9,
+            fontFamily: mono,
+            opacity: 0.6,
+          }}
+        >
+          · {sub}
+        </span>
+      )}
+    </div>
+  );
 }

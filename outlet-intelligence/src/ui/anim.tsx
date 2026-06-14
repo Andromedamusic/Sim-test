@@ -94,7 +94,8 @@ export function RadialGauge({ value, max = 1, size = 132, thickness = 11, color,
   { value: number; max?: number; size?: number; thickness?: number; color: string; track?: string; label?: React.ReactNode; sublabel?: string; glow?: boolean }) {
   const reduced = useReducedMotion();
   const f = Math.max(0, Math.min(1, value / max));
-  const af = reduced ? f : useSpringValue(f);
+  const sprung = useSpringValue(f); // always call the hook (Rules of Hooks)
+  const af = reduced ? f : sprung;
   const r = (size - thickness) / 2;
   const cx = size / 2, cy = size / 2;
   const C2 = 2 * Math.PI * r;

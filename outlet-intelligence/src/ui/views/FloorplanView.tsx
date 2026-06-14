@@ -3,28 +3,116 @@
    outlets on walls, tap one to measure it. Outlet rings are colour-coded by the
    engine verdict. Floors compose the home; the home rolls up on the Home tab.
    Touch + mouse via Pointer Events; pan by drag, zoom by wheel / ± controls.
+
+   Enhanced:
+   - Circuit Selector (chip row) with animated CircuitTrace current-flow lines
+   - Heatmap toggle (room fill tinted by worst verdict across outlets)
+   - OutletMarker (highlighted / dimmed by circuit selection)
+   - Minimap thumbnail (bottom-right)
+   - Animated grid lines + SVG vignette
+   - Improved empty state with oi-float / oi-pulse
+   - useReducedMotion respected throughout
    ════════════════════════════════════════════════════════════════════════════ */
 import React, { useMemo, useRef, useState } from "react";
 import { useStore } from "../../state/store";
 import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta } from "../../core";
-import { C, mono, VERDICT_COLOR } from "../theme";
+import { C, mono, VERDICT_COLOR, GRADE_COLOR } from "../theme";
+import { useReducedMotion } from "../anim";
 import { Card, Field, NumberInput, TextInput, Select, TriToggle, Sheet, Row, Bar } from "../components";
+import { OutletMarker } from "../viz/floorplan/OutletMarker";
+import { CircuitTrace } from "../viz/floorplan/CircuitTrace";
+import { Minimap } from "../viz/floorplan/Minimap";
+import { PhotoCaptureButton, PhotoStrip } from "../components/photo";
 
 const PAD = 1.2; // metres of padding around content
+
+// ── grade helpers ────────────────────────────────────────────────────────────
+const VERDICT_RANK: Record<string, number> = {
+  "SAFETY HOLD": 5,
+  CONDEMN: 4,
+  DEFECT: 3,
+  MINOR: 2,
+  INCONCLUSIVE: 1,
+  PASS: 0,
+};
+
+function worstVerdict(outlets: OutletNode[]): string | null {
+  let best: string | null = null;
+  let rank = -1;
+  for (const o of outlets) {
+    if (!o.inference) continue;
+    const v = o.inference.verdictCode;
+    const r = VERDICT_RANK[v] ?? 0;
+    if (r > rank) { rank = r; best = v; }
+  }
+  return best;
+}
+
+function roomGradeColor(outlets: OutletNode[]): string {
+  const v = worstVerdict(outlets);
+  if (!v) return "#17171C"; // no data — neutral dark tint
+  if (v === "SAFETY HOLD" || v === "CONDEMN") return GRADE_COLOR.RED + "28";
+  if (v === "DEFECT") return GRADE_COLOR.AMBER + "22";
+  if (v === "MINOR") return GRADE_COLOR.YELLOW + "1A";
+  if (v === "PASS") return GRADE_COLOR.GREEN + "14";
+  return "#17171C";
+}
+
+// ── circuit colour helper ────────────────────────────────────────────────────
+function circuitColor(outlets: OutletNode[]): string {
+  // Use the most alarming verdict's colour
+  const v = worstVerdict(outlets);
+  if (v) return VERDICT_COLOR[v] ?? C.blue;
+  return C.blue;
+}
 
 export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   const { model, activeFloorId, selectFloor, addFloor, addRoom, activeRoomId, selectRoom } = useStore();
   const [mode, setMode] = useState<"select" | "addOutlet">("select");
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 });
   const [sheetOutlet, setSheetOutlet] = useState<string | null>(null);
+  const [selectedCircuitId, setSelectedCircuitId] = useState<string | "ALL">("ALL");
+  const [heatmap, setHeatmap] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const reduced = useReducedMotion();
 
   if (!model) return null;
   const floors = model.floors;
   const floorId = activeFloorId ?? floors[0]?.id ?? null;
   const rooms = model.rooms.filter((r) => r.floorId === floorId);
-  const outletsByRoom = (rid: string) => model.outlets.filter((o) => o.roomId === rid);
+  const allOutlets = model.outlets;
+  const outletsByRoom = (rid: string) => allOutlets.filter((o) => o.roomId === rid);
+
+  // Outlets on this floor
+  const floorRoomIds = new Set(rooms.map((r) => r.id));
+  const floorOutlets = allOutlets.filter((o) => floorRoomIds.has(o.roomId));
+
+  // Circuits that appear on this floor
+  const floorCircuitIds = new Set(floorOutlets.map((o) => o.circuitId).filter((id): id is string => !!id));
+  const floorCircuits = model.circuits.filter((c) => floorCircuitIds.has(c.id));
+
+  // ── world coordinate of each outlet (flat map for CircuitTrace) ──────────
+  const outletPositionMap = useMemo<Map<string, { x: number; y: number }>>(() => {
+    const m = new Map<string, { x: number; y: number }>();
+    for (const r of rooms) {
+      for (const o of outletsByRoom(r.id)) {
+        m.set(o.id, outletXY(o, r));
+      }
+    }
+    return m;
+  }, [rooms, allOutlets]);
+
+  // Outlets belonging to the selected circuit (for trace + highlighting)
+  const selectedCircuitOutlets = useMemo<OutletNode[]>(() => {
+    if (selectedCircuitId === "ALL") return [];
+    return floorOutlets.filter((o) => o.circuitId === selectedCircuitId);
+  }, [floorOutlets, selectedCircuitId]);
+
+  const selectedCircuitColor = useMemo(() => {
+    if (selectedCircuitId === "ALL") return C.blue;
+    return circuitColor(selectedCircuitOutlets);
+  }, [selectedCircuitId, selectedCircuitOutlets]);
 
   // content bounding box (world metres)
   const bb = useMemo(() => {
@@ -103,9 +191,13 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     setSheetOutlet(id);
   };
 
+  const handleZoom = (delta: number) => {
+    setView((v) => ({ ...v, zoom: Math.max(0.4, Math.min(8, v.zoom * delta)) }));
+  };
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* floor + tools */}
+      {/* ── floor + tools ── */}
       <Card>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", gap: 4, overflowX: "auto" }}>
@@ -119,35 +211,166 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
             <button onClick={() => setMode(mode === "addOutlet" ? "select" : "addOutlet")} style={tool(mode === "addOutlet" ? C.amber : C.dim, mode === "addOutlet")}>
               {mode === "addOutlet" ? "● Tap a wall…" : "+ Outlet"}
             </button>
+            {/* Heatmap toggle */}
+            <button onClick={() => setHeatmap((h) => !h)} style={tool(heatmap ? GRADE_COLOR.AMBER : C.dim, heatmap)} title="Toggle room health heatmap">
+              {heatmap ? "◼ Health" : "◻ Health"}
+            </button>
             <button onClick={() => setView({ zoom: 1, panX: 0, panY: 0 })} style={tool(C.dim)}>⤢ Fit</button>
-            <button onClick={() => setView((v) => ({ ...v, zoom: Math.min(v.zoom * 1.25, 8) }))} style={tool(C.dim)}>＋</button>
-            <button onClick={() => setView((v) => ({ ...v, zoom: Math.max(v.zoom / 1.25, 0.4) }))} style={tool(C.dim)}>－</button>
+            <button onClick={() => handleZoom(1.25)} style={tool(C.dim)}>＋</button>
+            <button onClick={() => handleZoom(0.8)} style={tool(C.dim)}>－</button>
           </div>
         </div>
         <div style={{ color: C.dimmer, fontSize: 10, fontFamily: mono, marginTop: 8 }}>
           {mode === "addOutlet" ? "Tap inside a room near a wall to drop an outlet." : "Tap a room to select · tap an outlet to measure it · drag to pan."}
         </div>
+
+        {/* ── Circuit selector row ── */}
+        {floorCircuits.length > 0 && (
+          <div style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+            <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, marginBottom: 6, letterSpacing: 1 }}>CIRCUIT FILTER</div>
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+              <button
+                onClick={() => setSelectedCircuitId("ALL")}
+                style={circuitChip("ALL", selectedCircuitId, C.blue)}
+              >
+                All
+              </button>
+              {floorCircuits.map((c) => {
+                const cOutlets = floorOutlets.filter((o) => o.circuitId === c.id);
+                const col = circuitColor(cOutlets);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedCircuitId(selectedCircuitId === c.id ? "ALL" : c.id)}
+                    style={circuitChip(c.id, selectedCircuitId, col)}
+                    title={`${c.ampRating}A · ${cOutlets.length} outlet${cOutlets.length !== 1 ? "s" : ""}`}
+                  >
+                    <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: col, marginRight: 5, verticalAlign: "middle" }} />
+                    {c.breakerLabel}
+                    {c.isSharedNeutral && <span style={{ marginLeft: 4, fontSize: 8, opacity: 0.7 }}>MWB</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedCircuitId !== "ALL" && (
+              <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 10, fontSize: 10, fontFamily: mono, color: C.dim }}>
+                <svg width={28} height={8} style={{ display: "inline-block", verticalAlign: "middle" }}>
+                  <line x1={0} y1={4} x2={28} y2={4} stroke={selectedCircuitColor} strokeWidth={2} strokeDasharray="4 3" className={reduced ? "" : "oi-flow"} />
+                </svg>
+                <span>Animated circuit run · {selectedCircuitOutlets.length} outlet{selectedCircuitOutlets.length !== 1 ? "s" : ""} on this floor</span>
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
-      {/* canvas */}
-      <div style={{ background: "#0C0C10", border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", touchAction: "none" }}>
-        <svg ref={svgRef} viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} style={{ width: "100%", height: "min(64vh, 640px)", display: "block", cursor: mode === "addOutlet" ? "crosshair" : "grab" }}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-          onWheel={(e) => setView((v) => ({ ...v, zoom: Math.max(0.4, Math.min(8, v.zoom * (e.deltaY < 0 ? 1.1 : 0.9))) }))}>
-          {/* grid */}
-          <GridLines bb={bb} />
-          {rooms.map((r) => (
-            <RoomShape key={r.id} room={r} outlets={outletsByRoom(r.id)} selected={activeRoomId === r.id} />
-          ))}
+      {/* ── canvas ── */}
+      <div style={{ position: "relative", background: "#0C0C10", border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", touchAction: "none" }}>
+        <svg
+          ref={svgRef}
+          viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
+          style={{ width: "100%", height: "min(64vh, 640px)", display: "block", cursor: mode === "addOutlet" ? "crosshair" : "grab" }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onWheel={(e) => {
+            e.preventDefault();
+            setView((v) => ({ ...v, zoom: Math.max(0.4, Math.min(8, v.zoom * (e.deltaY < 0 ? 1.1 : 0.9))) }));
+          }}
+        >
+          <defs>
+            {/* Radial vignette */}
+            <radialGradient id="fp-vignette" cx="50%" cy="50%" r="70%">
+              <stop offset="60%" stopColor="#0C0C10" stopOpacity={0} />
+              <stop offset="100%" stopColor="#0C0C10" stopOpacity={0.55} />
+            </radialGradient>
+          </defs>
+
+          {/* ── grid ── */}
+          <GridLines bb={bb} reduced={reduced} />
+
+          {/* ── circuit trace (behind rooms) ── */}
+          {selectedCircuitId !== "ALL" && (
+            <CircuitTrace
+              outlets={selectedCircuitOutlets}
+              positions={outletPositionMap}
+              color={selectedCircuitColor}
+            />
+          )}
+
+          {/* ── rooms ── */}
+          {rooms.map((r) => {
+            const outs = outletsByRoom(r.id);
+            const heatFill = heatmap ? roomGradeColor(outs) : null;
+            return (
+              <RoomShape
+                key={r.id}
+                room={r}
+                outlets={outs}
+                selected={activeRoomId === r.id}
+                heatFill={heatFill}
+                selectedCircuitId={selectedCircuitId}
+                onTapOutlet={setSheetOutlet}
+              />
+            );
+          })}
+
+          {/* ── vignette overlay (purely decorative) ── */}
+          <rect
+            x={vb.x} y={vb.y} width={vb.w} height={vb.h}
+            fill="url(#fp-vignette)"
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* ── empty state ── */}
           {rooms.length === 0 && (
-            <text x={bb.x + bb.w / 2} y={bb.y + bb.h / 2} fill={C.dim} fontSize={0.5} fontFamily={mono} textAnchor="middle">Tap “+ Room” to begin mapping this floor</text>
+            <g className={reduced ? "" : "oi-float"} style={{ transformOrigin: `${bb.x + bb.w / 2}px ${bb.y + bb.h / 2}px` }}>
+              <text
+                x={bb.x + bb.w / 2}
+                y={bb.y + bb.h / 2 - 0.3}
+                fill={C.dim}
+                fontSize={0.55}
+                fontFamily={mono}
+                textAnchor="middle"
+              >
+                Tap "+ Room" to begin
+              </text>
+              <text
+                x={bb.x + bb.w / 2}
+                y={bb.y + bb.h / 2 + 0.45}
+                fill={C.dimmer}
+                fontSize={0.38}
+                fontFamily={mono}
+                textAnchor="middle"
+              >
+                mapping this floor
+              </text>
+              {/* Pulsing dot */}
+              <circle
+                cx={bb.x + bb.w / 2}
+                cy={bb.y + bb.h / 2 + 1.2}
+                r={0.18}
+                fill={C.blue}
+                className={reduced ? "" : "oi-pulse"}
+                opacity={0.7}
+              />
+            </g>
           )}
         </svg>
+
+        {/* ── minimap ── */}
+        <Minimap rooms={rooms} viewBox={vb} />
       </div>
 
       {activeRoomId && <RoomInspector roomId={activeRoomId} />}
 
-      {sheetOutlet && <MeasurementPanel outletId={sheetOutlet} onClose={() => setSheetOutlet(null)} onOpenDiagnose={onDiagnose} />}
+      {sheetOutlet && (
+        <MeasurementPanel
+          outletId={sheetOutlet}
+          onClose={() => setSheetOutlet(null)}
+          onOpenDiagnose={onDiagnose}
+        />
+      )}
     </div>
   );
 }
@@ -163,40 +386,107 @@ function outletXY(o: OutletNode, r: RoomNode): { x: number; y: number } {
   }
 }
 
-function GridLines({ bb }: { bb: { x: number; y: number; w: number; h: number } }) {
+// ── grid lines ──────────────────────────────────────────────────────────────
+function GridLines({ bb, reduced }: { bb: { x: number; y: number; w: number; h: number }; reduced: boolean }) {
   const lines: React.ReactNode[] = [];
-  const x0 = Math.floor(bb.x), x1 = Math.ceil(bb.x + bb.w), y0 = Math.floor(bb.y), y1 = Math.ceil(bb.y + bb.h);
-  for (let x = x0; x <= x1; x++) lines.push(<line key={`v${x}`} x1={x} y1={bb.y} x2={x} y2={bb.y + bb.h} stroke="#17171C" strokeWidth={0.02} />);
-  for (let y = y0; y <= y1; y++) lines.push(<line key={`h${y}`} x1={bb.x} y1={y} x2={bb.x + bb.w} y2={y} stroke="#17171C" strokeWidth={0.02} />);
-  return <g>{lines}</g>;
+  const x0 = Math.floor(bb.x), x1 = Math.ceil(bb.x + bb.w);
+  const y0 = Math.floor(bb.y), y1 = Math.ceil(bb.y + bb.h);
+  for (let x = x0; x <= x1; x++) {
+    const major = x % 5 === 0;
+    lines.push(
+      <line
+        key={`v${x}`}
+        x1={x} y1={bb.y} x2={x} y2={bb.y + bb.h}
+        stroke={major ? "#1F1F26" : "#17171C"}
+        strokeWidth={major ? 0.03 : 0.018}
+      />
+    );
+  }
+  for (let y = y0; y <= y1; y++) {
+    const major = y % 5 === 0;
+    lines.push(
+      <line
+        key={`h${y}`}
+        x1={bb.x} y1={y} x2={bb.x + bb.w} y2={y}
+        stroke={major ? "#1F1F26" : "#17171C"}
+        strokeWidth={major ? 0.03 : 0.018}
+      />
+    );
+  }
+  return <g aria-hidden>{lines}</g>;
 }
 
-function RoomShape({ room, outlets, selected }: { room: RoomNode; outlets: OutletNode[]; selected: boolean }) {
+// ── room shape ──────────────────────────────────────────────────────────────
+interface RoomShapeProps {
+  room: RoomNode;
+  outlets: OutletNode[];
+  selected: boolean;
+  heatFill: string | null;
+  selectedCircuitId: string | "ALL";
+  onTapOutlet: (id: string) => void;
+}
+
+function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTapOutlet }: RoomShapeProps) {
   const { x, y } = room.floorOffset;
+
   return (
     <g>
-      <rect x={x} y={y} width={room.width_m} height={room.depth_m} rx={0.08}
-        fill={selected ? "#15202E" : "#121217"} stroke={selected ? C.blue : "#3A3A44"} strokeWidth={selected ? 0.06 : 0.035} />
+      {/* Base room rect */}
+      <rect
+        x={x} y={y}
+        width={room.width_m} height={room.depth_m}
+        rx={0.08}
+        fill={selected ? "#15202E" : "#121217"}
+        stroke={selected ? C.blue : "#3A3A44"}
+        strokeWidth={selected ? 0.06 : 0.035}
+        style={{ transition: "fill 0.35s, stroke 0.25s" }}
+      />
+
+      {/* Heatmap tint overlay */}
+      {heatFill && (
+        <rect
+          x={x} y={y}
+          width={room.width_m} height={room.depth_m}
+          rx={0.08}
+          fill={heatFill}
+          style={{ pointerEvents: "none", transition: "fill 0.45s" }}
+        />
+      )}
+
       <text x={x + 0.18} y={y + 0.55} fill={C.dim} fontSize={0.42} fontFamily={mono}>{room.name}</text>
-      <text x={x + room.width_m - 0.18} y={y + room.depth_m - 0.22} fill="#3A3A44" fontSize={0.3} fontFamily={mono} textAnchor="end">{room.width_m}×{room.depth_m}m</text>
+      <text
+        x={x + room.width_m - 0.18}
+        y={y + room.depth_m - 0.22}
+        fill="#3A3A44"
+        fontSize={0.3}
+        fontFamily={mono}
+        textAnchor="end"
+      >
+        {room.width_m}×{room.depth_m}m
+      </text>
+
+      {/* Outlets — using OutletMarker */}
       {outlets.map((o) => {
         const p = outletXY(o, room);
-        const v = o.inference?.verdictCode;
-        const color = v ? (VERDICT_COLOR[v] ?? C.dim) : "#52525B";
-        const lethal = o.inference?.hold || (o.inference && o.inference.topFault !== "healthy" && (o.inference.ranked[0]?.[1] ?? 0) > 0.4 && ["reversed_pol", "bootleg_gnd", "reverse_bootleg"].includes(o.inference.topFault));
+        const highlighted = selectedCircuitId !== "ALL" && o.circuitId === selectedCircuitId;
+        const dimmed = selectedCircuitId !== "ALL" && o.circuitId !== selectedCircuitId;
         return (
-          <g key={o.id}>
-            {lethal && <circle cx={p.x} cy={p.y} r={0.32} fill="none" stroke={C.danger} strokeWidth={0.05} opacity={0.6}><animate attributeName="r" values="0.26;0.4;0.26" dur="1.4s" repeatCount="indefinite" /></circle>}
-            <circle cx={p.x} cy={p.y} r={0.2} fill={color} stroke="#0A0A0C" strokeWidth={0.04} />
-            <circle cx={p.x} cy={p.y} r={0.085} fill="#0A0A0C" />
-          </g>
+          <OutletMarker
+            key={o.id}
+            outlet={o}
+            x={p.x}
+            y={p.y}
+            highlighted={highlighted}
+            dimmed={dimmed}
+            onTap={() => onTapOutlet(o.id)}
+          />
         );
       })}
     </g>
   );
 }
 
-// ── room inspector (rename / resize / delete) ───────────────────────────────
+// ── room inspector (rename / resize / delete) ────────────────────────────────
 function RoomInspector({ roomId }: { roomId: string }) {
   const { model, updateRoom, removeRoom } = useStore();
   const room = model!.rooms.find((r) => r.id === roomId);
@@ -211,13 +501,19 @@ function RoomInspector({ roomId }: { roomId: string }) {
         <Field label="Move X (m)"><NumberInput value={room.floorOffset.x} onChange={(v) => set({ floorOffset: { ...room.floorOffset, x: parseFloat(v) || 0 } })} /></Field>
         <Field label="Move Y (m)"><NumberInput value={room.floorOffset.y} onChange={(v) => set({ floorOffset: { ...room.floorOffset, y: parseFloat(v) || 0 } })} /></Field>
       </div>
-      <button onClick={() => removeRoom(room.id)} style={{ marginTop: 10, background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>Delete room</button>
+      <button
+        onClick={() => removeRoom(room.id)}
+        style={{ marginTop: 10, background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}
+      >
+        Delete room
+      </button>
     </Card>
   );
 }
 
 // ── per-outlet measurement panel ─────────────────────────────────────────────
 const THERMALS = ["none", "H-slot", "N-slot", "both", "terminal"] as const;
+
 function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: string; onClose: () => void; onOpenDiagnose: () => void }) {
   const { model, measureOutlet, updateOutlet, removeOutlet, addCircuit, updateCircuit } = useStore();
   const outlet = model!.outlets.find((o) => o.id === outletId)!;
@@ -241,7 +537,9 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <Field label="Label"><TextInput value={label} onChange={setLabel} /></Field>
           <Field label="Circuit / breaker">
-            <Select value={outlet.circuitId ?? "—"} options={["—", ...circuits.map((c) => c.breakerLabel), "+ new circuit"]}
+            <Select
+              value={outlet.circuitId ?? "—"}
+              options={["—", ...circuits.map((c) => c.breakerLabel), "+ new circuit"]}
               onChange={async (v) => {
                 if (v === "—") return updateOutlet({ ...outlet, circuitId: null });
                 if (v === "+ new circuit") {
@@ -250,7 +548,8 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
                 }
                 const c = circuits.find((x) => x.breakerLabel === v);
                 if (c) updateOutlet({ ...outlet, circuitId: c.id });
-              }} />
+              }}
+            />
           </Field>
         </div>
 
@@ -268,6 +567,13 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
           <Field label="Real ground?"><TriToggle value={obs.hasGroundWire} onChange={(v) => so("hasGroundWire", v)} /></Field>
           <Field label="GFCI trips?"><TriToggle value={obs.gfciTrip} onChange={(v) => so("gfciTrip", v)} /></Field>
         </div>
+
+        {/* photos */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <PhotoCaptureButton outletId={outletId} />
+          <span style={{ color: C.dimmer, fontSize: 9.5, fontFamily: mono }}>thermal / faceplate / wiring evidence</span>
+        </div>
+        <PhotoStrip outletId={outletId} />
 
         {/* live preview */}
         <div style={{ border: `2px solid ${preview.vColor}`, borderRadius: 10, padding: 10, background: preview.hold ? "#1A0606" : "#0E0E12" }}>
@@ -288,5 +594,43 @@ function MeasurementPanel({ outletId, onClose, onOpenDiagnose }: { outletId: str
 }
 
 // ── small style helpers ──────────────────────────────────────────────────────
-const chip = (active: boolean): React.CSSProperties => ({ padding: "6px 11px", borderRadius: 7, whiteSpace: "nowrap", border: `1px solid ${active ? C.blue : C.border}`, background: active ? "#1E293B" : "#0E0E12", color: active ? C.text : C.dim, fontSize: 11, fontFamily: mono });
-const tool = (color: string, active = false): React.CSSProperties => ({ padding: "7px 11px", borderRadius: 7, border: `1px solid ${color}`, background: active ? color + "22" : "transparent", color, fontSize: 11, fontFamily: mono, fontWeight: 700, whiteSpace: "nowrap" });
+const chip = (active: boolean): React.CSSProperties => ({
+  padding: "6px 11px",
+  borderRadius: 7,
+  whiteSpace: "nowrap",
+  border: `1px solid ${active ? C.blue : C.border}`,
+  background: active ? "#1E293B" : "#0E0E12",
+  color: active ? C.text : C.dim,
+  fontSize: 11,
+  fontFamily: mono,
+});
+
+const tool = (color: string, active = false): React.CSSProperties => ({
+  padding: "7px 11px",
+  borderRadius: 7,
+  border: `1px solid ${color}`,
+  background: active ? color + "22" : "transparent",
+  color,
+  fontSize: 11,
+  fontFamily: mono,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+});
+
+function circuitChip(id: string, selected: string, color: string): React.CSSProperties {
+  const active = id === selected;
+  return {
+    padding: "5px 10px",
+    borderRadius: 999,
+    whiteSpace: "nowrap",
+    border: `1px solid ${active ? color : C.border}`,
+    background: active ? color + "22" : "#0E0E12",
+    color: active ? color : C.dim,
+    fontSize: 10,
+    fontFamily: mono,
+    fontWeight: active ? 800 : 400,
+    cursor: "pointer",
+    transition: "background 0.2s, border-color 0.2s, color 0.2s",
+  };
+}

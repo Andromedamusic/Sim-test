@@ -492,6 +492,15 @@ function RoomInspector({ roomId }: { roomId: string }) {
   const room = model!.rooms.find((r) => r.id === roomId);
   if (!room) return null;
   const set = (patch: Partial<RoomNode>) => updateRoom({ ...room, ...patch });
+  // Keyboard/screen-reader path for adding an outlet without the SVG canvas:
+  // distribute new outlets around the four walls.
+  const addOutletHere = () => {
+    const here = model!.outlets.filter((o) => o.roomId === room.id);
+    const walls: WallId[] = ["N", "E", "S", "W"];
+    const wall = walls[here.length % 4];
+    const onWall = here.filter((o) => o.position.wallId === wall).length;
+    void useStore.getState().addOutlet(room.id, { wallId: wall, offset: Math.min(0.9, 0.2 + onWall * 0.2) });
+  };
   return (
     <Card title="ROOM">
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 8 }}>
@@ -501,12 +510,14 @@ function RoomInspector({ roomId }: { roomId: string }) {
         <Field label="Move X (m)"><NumberInput value={room.floorOffset.x} onChange={(v) => set({ floorOffset: { ...room.floorOffset, x: parseFloat(v) || 0 } })} /></Field>
         <Field label="Move Y (m)"><NumberInput value={room.floorOffset.y} onChange={(v) => set({ floorOffset: { ...room.floorOffset, y: parseFloat(v) || 0 } })} /></Field>
       </div>
-      <button
-        onClick={() => removeRoom(room.id)}
-        style={{ marginTop: 10, background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}
-      >
-        Delete room
-      </button>
+      <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={addOutletHere} className="oi-press" style={{ background: "transparent", color: C.blue, border: `1px solid ${C.blue}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
+          + Add outlet
+        </button>
+        <button onClick={() => removeRoom(room.id)} style={{ background: "#3A0808", color: "#FECACA", border: "1px solid #991B1B", borderRadius: 7, padding: "7px 11px", fontSize: 11, fontFamily: mono, fontWeight: 700 }}>
+          Delete room
+        </button>
+      </div>
     </Card>
   );
 }

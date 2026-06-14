@@ -62,10 +62,10 @@ export function App() {
       </header>
 
       {/* desktop tabs */}
-      <nav className="topnav" style={{ display: "flex", gap: 4, padding: "6px 10px", background: "#0F0F12", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
+      <nav className="topnav" aria-label="Sections" style={{ display: "flex", gap: 4, padding: "6px 10px", background: "#0F0F12", borderBottom: `1px solid ${C.border}`, overflowX: "auto" }}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={tabStyle(tab === t.id)}>
-            <span>{t.icon}</span> {t.label}
+          <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} style={tabStyle(tab === t.id)}>
+            <span aria-hidden>{t.icon}</span> {t.label}
           </button>
         ))}
       </nav>

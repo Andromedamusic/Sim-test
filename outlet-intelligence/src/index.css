@@ -1,0 +1,37 @@
+:root {
+  color-scheme: dark;
+  --bg: #04060b;
+  --panel: #0d131d;
+  --border: #202c3d;
+  --text: #e6edf6;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+input, select, textarea {
+  width: 100%;
+  background: #09090b;
+  border: 1px solid #3f3f46;
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: var(--text);
+}
+input[type="checkbox"], input[type="range"] { width: auto; }
+button { cursor: pointer; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+a { color: #60a5fa; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #2e2e36; border-radius: 5px; }
+.no-select { user-select: none; -webkit-user-select: none; }
+/* touch-friendly tap targets on phones */
+@media (pointer: coarse) {
+  button { min-height: 40px; }
+}

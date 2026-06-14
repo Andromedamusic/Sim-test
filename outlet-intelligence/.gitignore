@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-single/
+*.tsbuildinfo
+.DS_Store
+.vite/
+coverage/
+
+# NOTE: outlet-intelligence.html is the committed single-file test build
+# (kept tracked so it can be opened directly or served via a CDN link).

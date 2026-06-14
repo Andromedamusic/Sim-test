@@ -18,3 +18,8 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+# Node / build artifacts (root-level safety net)
+node_modules/
+outlet-intelligence/dist/
+outlet-intelligence/dist-single/
+*.tsbuildinfo

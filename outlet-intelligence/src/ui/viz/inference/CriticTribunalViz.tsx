@@ -7,8 +7,14 @@ import React, { useState } from "react";
 import { GlowCard, useReducedMotion } from "../../anim";
 import { C, HUD, mono } from "../../theme";
 import { Bracket } from "../../hud/Bracket";
+import { OIcon, CRITIC_ICON } from "../../icons/OIcon";
 import { FAULTS } from "../../../core";
 import type { Critic } from "../../../core";
+
+/** A small designed section bullet — replaces unicode ◆ tells. */
+function Tick({ color }: { color: string }) {
+  return <span style={{ width: 3, height: 9, borderRadius: 2, background: color, display: "inline-block", flexShrink: 0 }} />;
+}
 
 interface Props {
   critics: Critic[];
@@ -43,7 +49,7 @@ export function CriticTribunalViz({ critics }: Props) {
         alignItems: "center",
         gap: 6,
       }}>
-        <span style={{ color: HUD.cyan, fontSize: 7 }}>◆</span>
+        <Tick color={HUD.cyan} />
         CRITIC TRIBUNAL — 6 AGENTS ADJUDICATE
       </div>
 
@@ -110,7 +116,7 @@ export function CriticTribunalViz({ critics }: Props) {
 
               {/* Icon + name row */}
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 7 }}>
-                <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
+                <OIcon name={CRITIC_ICON[c.id] ?? "more"} size={19} color={c.color} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     color: c.color,
@@ -178,8 +184,11 @@ export function CriticTribunalViz({ critics }: Props) {
                   fontSize: 9,
                   fontWeight: 800,
                   letterSpacing: 0.3,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
                 }}>
-                  ☠ HOLD DEMANDED
+                  <OIcon name="verdictHold" size={12} color={C.danger} />HOLD DEMANDED
                 </div>
               )}
 
@@ -236,7 +245,7 @@ export function CriticTribunalViz({ critics }: Props) {
 
             {/* Transcript header */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <span style={{ fontSize: 22, lineHeight: 1 }}>{c.icon}</span>
+              <OIcon name={CRITIC_ICON[c.id] ?? "more"} size={24} color={c.color} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: c.color, fontFamily: mono, fontWeight: 800, fontSize: 13, lineHeight: 1.2 }}>{c.name}</div>
                 <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 9, marginTop: 2 }}>{c.role}</div>
@@ -293,7 +302,7 @@ export function CriticTribunalViz({ critics }: Props) {
                     paddingLeft: 14,
                     borderLeft: `2px solid ${c.color}55`,
                   }}>
-                    <span style={{ color: c.color + "99", marginRight: 6 }}>▸</span>
+                    <span style={{ display: "inline-block", width: 7, height: 1.5, background: c.color + "99", borderRadius: 1, marginRight: 7, marginBottom: 3, verticalAlign: "middle" }} />
                     {arg}
                   </div>
                 ))}

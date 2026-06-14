@@ -2,6 +2,7 @@
 import React from "react";
 import { C, mono } from "./theme";
 import { Bracket } from "./hud/Bracket";
+import { OIcon, type OIconName } from "./icons/OIcon";
 
 export function Card({ title, right, children, style }: { title?: string; right?: React.ReactNode; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -31,10 +32,12 @@ export function Card({ title, right, children, style }: { title?: string; right?
 }
 
 /** Canonical HUD section header (replaces the per-view HudLabel variants). */
-export function SectionHeader({ label, sub, style }: { label: string; sub?: string; style?: React.CSSProperties }) {
+export function SectionHeader({ label, sub, icon, style }: { label: string; sub?: string; icon?: OIconName; style?: React.CSSProperties }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 10px", ...style }}>
-      <span style={{ width: 6, height: 6, background: C.blue, transform: "rotate(45deg)", boxShadow: `0 0 6px ${C.blue}`, flexShrink: 0 }} />
+      {icon
+        ? <OIcon name={icon} size={15} color={C.blue} style={{ flexShrink: 0 }} />
+        : <span style={{ width: 6, height: 6, background: C.blue, transform: "rotate(45deg)", boxShadow: `0 0 6px ${C.blue}`, flexShrink: 0 }} />}
       <span style={{ color: C.blue, fontSize: 10, fontFamily: mono, fontWeight: 800, letterSpacing: 1.5, textTransform: "uppercase" }}>{label}</span>
       {sub && <span style={{ color: C.dim, fontSize: 9.5, fontFamily: mono }}>{sub}</span>}
       <span style={{ flex: 1, height: 1, background: `linear-gradient(90deg,${C.border},transparent)` }} />
@@ -85,10 +88,13 @@ export function Bar({ pct, color, h = 7 }: { pct: number; color: string; h?: num
   );
 }
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, icon, children }: { label: string; icon?: OIconName; children: React.ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-      <span style={{ color: C.dim, fontSize: 10, fontFamily: mono }}>{label}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 5, color: C.dim, fontSize: 10, fontFamily: mono }}>
+        {icon && <OIcon name={icon} size={13} color={C.dim} accent="#F8B544aa" />}
+        {label}
+      </span>
       {children}
     </label>
   );

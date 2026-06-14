@@ -10,6 +10,7 @@ import { Boot } from "./hud/Boot";
 import { Bracket } from "./hud/Bracket";
 import { LiveDiagnostic } from "./pip/LiveDiagnostic";
 import { HomeSwitcher } from "./components/HomeSwitcher";
+import { OIcon, type OIconName } from "./icons/OIcon";
 import { ReportView } from "./views/ReportView";
 import { InferenceView } from "./views/InferenceView";
 import { FloorplanView } from "./views/FloorplanView";
@@ -23,17 +24,17 @@ import { LearningView } from "./views/LearningView";
 
 type TabId = "home" | "map" | "diagnose" | "panel" | "atlas" | "prognosis" | "learning" | "report" | "ref" | "settings";
 const PRIMARY: TabId[] = ["home", "map", "diagnose", "panel", "settings"];
-const TABS: Array<{ id: TabId; label: string; icon: string }> = [
-  { id: "home", label: "Command", icon: "◉" },
-  { id: "map", label: "Map", icon: "⬗" },
-  { id: "diagnose", label: "Diagnose", icon: "⊹" },
-  { id: "panel", label: "Panel", icon: "⊞" },
-  { id: "atlas", label: "Atlas", icon: "❖" },
-  { id: "prognosis", label: "Prognosis", icon: "⌁" },
-  { id: "learning", label: "Learning", icon: "✸" },
-  { id: "report", label: "Report", icon: "▤" },
-  { id: "ref", label: "Reference", icon: "⌑" },
-  { id: "settings", label: "Settings", icon: "⚙" },
+const TABS: Array<{ id: TabId; label: string; icon: OIconName }> = [
+  { id: "home", label: "Command", icon: "command" },
+  { id: "map", label: "Map", icon: "room" },
+  { id: "diagnose", label: "Diagnose", icon: "diagnose" },
+  { id: "panel", label: "Panel", icon: "breaker" },
+  { id: "atlas", label: "Atlas", icon: "atlas" },
+  { id: "prognosis", label: "Prognosis", icon: "prognosis" },
+  { id: "learning", label: "Learning", icon: "learning" },
+  { id: "report", label: "Report", icon: "report" },
+  { id: "ref", label: "Reference", icon: "reference" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 export function App() {
@@ -72,13 +73,15 @@ export function App() {
           {/* ── HEADER ── */}
           <header style={{ background: "linear-gradient(180deg,rgba(7,11,18,0.92),rgba(7,11,18,0.66))", backdropFilter: "blur(10px)", borderBottom: `1px solid ${HUD.line}`, padding: "9px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 30 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-              <span style={{ width: 15, height: 15, borderRadius: "50%", border: `2px solid ${C.blue}44`, borderTopColor: C.blue, boxShadow: `0 0 8px -2px ${C.blue}`, flexShrink: 0 }} />
+              <OIcon name="logo" size={20} color={C.blue} style={{ filter: `drop-shadow(0 0 6px ${C.blue}66)`, flexShrink: 0 }} />
               <span className="brandfull" style={{ fontFamily: mono, fontWeight: 800, fontSize: 14, letterSpacing: 1.2, background: holoGrad, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", whiteSpace: "nowrap" }}>OUTLET&nbsp;INTELLIGENCE</span>
             </div>
             <HomeSwitcher />
             <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
               {health && <Pill color={GRADE_COLOR[health.grade]}>{health.safetyHold ? "⚠ HOLD" : health.grade}</Pill>}
-              <button onClick={() => setPip((p) => !p)} title="Toggle live diagnostic" className="oi-press" style={{ ...hudCtl, color: pip ? C.blue : C.dim, borderColor: pip ? `${C.blue}66` : HUD.line, boxShadow: pip ? glow(C.blue, 0.4) : "none" }}>◳ LIVE</button>
+              <button onClick={() => setPip((p) => !p)} title="Toggle live diagnostic" className="oi-press" style={{ ...hudCtl, display: "inline-flex", alignItems: "center", gap: 6, color: pip ? C.blue : C.dim, borderColor: pip ? `${C.blue}66` : HUD.line, boxShadow: pip ? glow(C.blue, 0.4) : "none" }}>
+                <span className={pip && !reduced ? "oi-pulse" : undefined} style={{ width: 6, height: 6, borderRadius: "50%", background: pip ? C.blue : C.dim, boxShadow: pip ? `0 0 6px ${C.blue}` : "none" }} />LIVE
+              </button>
               {memoryMode && <span title="IndexedDB unavailable — running in memory; export to save." style={{ fontSize: 9, fontFamily: mono, color: C.warn, letterSpacing: 1 }}>⚠ TEST</span>}
               <span className="hide-narrow" title={online ? "online" : "offline — engine fully functional"} style={{ fontSize: 9, fontFamily: mono, color: online ? C.good : C.dim, letterSpacing: 1 }}>{online ? "● ONLINE" : "○ OFFLINE"}</span>
             </div>
@@ -114,13 +117,13 @@ export function App() {
             {TABS.filter((t) => PRIMARY.includes(t.id)).map((t) => (
               <DockBtn key={t.id} icon={t.icon} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
             ))}
-            <DockBtn icon="⋯" label="More" active={!PRIMARY.includes(tab)} onClick={() => setMoreOpen(true)} />
+            <DockBtn icon="more" label="More" active={!PRIMARY.includes(tab)} onClick={() => setMoreOpen(true)} />
           </nav>
         </div>
       )}
 
       {/* secondary tabs (mobile "More") */}
-      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="◆ ALL SECTIONS">
+      <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="ALL SECTIONS">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8, paddingBottom: 8 }}>
           {TABS.map((t) => (
             <button key={t.id} onClick={() => { setTab(t.id); setMoreOpen(false); }} className="oi-press" style={{
@@ -128,7 +131,7 @@ export function App() {
               background: tab === t.id ? `${C.blue}1a` : "#0E1622", border: `1px solid ${tab === t.id ? `${C.blue}66` : HUD.line}`,
               color: tab === t.id ? "#EAF6FF" : C.text, fontFamily: mono, fontSize: 13, fontWeight: 700, textAlign: "left",
             }}>
-              <span style={{ fontSize: 17 }}>{t.icon}</span>{t.label}
+              <OIcon name={t.icon} size={19} color={tab === t.id ? C.blue : C.dim} />{t.label}
             </button>
           ))}
         </div>
@@ -151,20 +154,22 @@ export function App() {
   );
 }
 
-function DockBtn({ icon, label, active, onClick }: { icon: string; label: string; active: boolean; onClick: () => void }) {
+function DockBtn({ icon, label, active, onClick }: { icon: OIconName; label: string; active: boolean; onClick: () => void }) {
   return (
     <button onClick={onClick} className="oi-press" style={{
       background: "none", border: "none", color: active ? C.blue : C.dim, fontFamily: mono,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
       minHeight: 48, minWidth: 52, padding: "4px 6px", flex: 1,
     }}>
-      <span style={{ fontSize: 18, lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>{icon}</span>
+      <span style={{ display: "flex", lineHeight: 1, filter: active ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>
+        <OIcon name={icon} size={22} accent={active ? undefined : "#F8B54488"} />
+      </span>
       <span style={{ fontSize: active ? 10.5 : 10, fontWeight: active ? 700 : 500 }}>{label}</span>
     </button>
   );
 }
 
-function CommandTab({ icon, label, active, onClick, reduced }: { icon: string; label: string; active: boolean; onClick: () => void; reduced: boolean }) {
+function CommandTab({ icon, label, active, onClick, reduced }: { icon: OIconName; label: string; active: boolean; onClick: () => void; reduced: boolean }) {
   const [hover, setHover] = useState(false);
   return (
     <button
@@ -180,7 +185,9 @@ function CommandTab({ icon, label, active, onClick, reduced }: { icon: string; l
       }}
     >
       {active && <Bracket color={C.blue} size={7} inset={2} weight={1.5} opacity={0.9} />}
-      <span aria-hidden style={{ fontSize: 13, filter: active ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>{icon}</span>
+      <span aria-hidden style={{ display: "flex", filter: active ? `drop-shadow(0 0 6px ${C.blue})` : "none" }}>
+        <OIcon name={icon} size={15} accent={active ? undefined : "#F8B54488"} />
+      </span>
       {label}
       {active && <span style={{ position: "absolute", left: 10, right: 10, bottom: -1, height: 2, background: holoGrad, borderRadius: 2, boxShadow: `0 0 8px ${C.blue}` }} />}
     </button>

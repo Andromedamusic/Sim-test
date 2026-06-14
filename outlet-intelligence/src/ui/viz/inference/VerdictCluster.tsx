@@ -7,6 +7,7 @@ import React from "react";
 import { RadialGauge, useReducedMotion } from "../../anim";
 import { C, HUD, mono, holoGrad, amberGrad } from "../../theme";
 import { Bracket } from "../../hud/Bracket";
+import { OIcon, VERDICT_ICON } from "../../icons/OIcon";
 import { FAULTS } from "../../../core";
 import type { analyzeOutlet } from "../../../core";
 
@@ -114,7 +115,7 @@ export function VerdictCluster({ result }: { result: Result }) {
         alignItems: "center",
         gap: 6,
       }}>
-        <span style={{ color: result.vColor, fontSize: 7 }}>◆</span>
+        <span style={{ width: 3, height: 9, borderRadius: 2, background: result.vColor, display: "inline-block", flexShrink: 0 }} />
         ADJUDICATED VERDICT
       </div>
 
@@ -149,19 +150,28 @@ export function VerdictCluster({ result }: { result: Result }) {
 
         {/* Right info stack */}
         <div style={{ flex: 1, minWidth: 120, display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* Big verdict word in gradient */}
-          <div style={{
-            fontFamily: mono,
-            fontWeight: 900,
-            fontSize: 28,
-            lineHeight: 1,
-            background: grad,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            letterSpacing: 1,
-          }}>
-            {vWord}
+          {/* Big verdict word in gradient, led by its hex-frame glyph */}
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <OIcon
+              name={VERDICT_ICON[result.verdictCode] ?? "verdictInconclusive"}
+              size={34}
+              color={result.vColor}
+              accent={result.vColor}
+              style={{ filter: `drop-shadow(0 0 7px ${result.vColor}66)`, flexShrink: 0 }}
+            />
+            <div style={{
+              fontFamily: mono,
+              fontWeight: 900,
+              fontSize: 28,
+              lineHeight: 1,
+              background: grad,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              letterSpacing: 1,
+            }}>
+              {vWord}
+            </div>
           </div>
 
           {/* Telemetry chips row */}
@@ -226,12 +236,13 @@ export function VerdictCluster({ result }: { result: Result }) {
             padding: "10px 12px",
           }}
         >
-          <div style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, marginBottom: 8 }}>
-            ☠ SAFETY HOLD — RESOLVE BEFORE PROCEEDING
+          <div style={{ color: "#FCA5A5", fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <OIcon name="shield" size={13} color="#FCA5A5" accent={C.danger} />SAFETY HOLD — RESOLVE BEFORE PROCEEDING
           </div>
           {result.demand.map((d, i) => (
-            <div key={i} style={{ color: "#FECACA", fontFamily: mono, fontSize: 10.5, lineHeight: 1.7 }}>
-              ▸ {d}
+            <div key={i} style={{ color: "#FECACA", fontFamily: mono, fontSize: 10.5, lineHeight: 1.7, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ display: "inline-block", width: 7, height: 1.5, background: "#FCA5A5", borderRadius: 1, marginTop: 7, flexShrink: 0 }} />
+              <span>{d}</span>
             </div>
           ))}
         </div>

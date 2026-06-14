@@ -20,6 +20,7 @@ import {
 } from "../components";
 import { AnimatedNumber, GlowCard } from "../anim";
 import { Bracket } from "../hud/Bracket";
+import { OIcon, type OIconName } from "../icons/OIcon";
 import { METER_NAMES, METERS } from "../meters";
 
 import { VerdictCluster }    from "../viz/inference/VerdictCluster";
@@ -54,10 +55,10 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
   const VNG = num(obs.VNG);
 
   const reduced = useReducedMotion();
-  const readings: { label: string; v: number | null; target: number }[] = [
-    { label: "H → N", v: VHN, target: 120 },
-    { label: "H → G", v: VHG, target: 120 },
-    { label: "N → G", v: VNG, target: 0 },
+  const readings: { label: string; v: number | null; target: number; icon: OIconName }[] = [
+    { label: "H → N", v: VHN, target: 120, icon: "hot" },
+    { label: "H → G", v: VHG, target: 120, icon: "ground" },
+    { label: "N → G", v: VNG, target: 0, icon: "neutral" },
   ];
 
   return (
@@ -107,11 +108,13 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
 
       {/* Voltage readouts */}
       <div style={{ display: "flex", gap: 24, flex: 1, justifyContent: "center", flexWrap: "wrap" }}>
-        {readings.map(({ label, v, target }) => {
+        {readings.map(({ label, v, target, icon }) => {
           const col = vClass(v, target);
           return (
             <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <span style={{ color: C.dim, fontFamily: mono, fontSize: 10, letterSpacing: 1 }}>{label}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.dim, fontFamily: mono, fontSize: 10, letterSpacing: 1 }}>
+                <OIcon name={icon} size={12} color={col} accent={col} />{label}
+              </span>
               <span style={{
                 color: col,
                 fontFamily: mono,
@@ -186,43 +189,43 @@ export function InferenceView() {
               </div>
             }
           >
-            <SectionHeader label="No-load voltages (VAC)" />
+            <SectionHeader label="No-load voltages (VAC)" icon="voltage" />
             <div style={grid3}>
-              <Field label="V H→N"><NumberInput value={obs.VHN} onChange={(v) => so("VHN", v)} /></Field>
-              <Field label="V H→G"><NumberInput value={obs.VHG} onChange={(v) => so("VHG", v)} /></Field>
-              <Field label="V N→G"><NumberInput value={obs.VNG} onChange={(v) => so("VNG", v)} /></Field>
+              <Field label="V H→N" icon="hot"><NumberInput value={obs.VHN} onChange={(v) => so("VHN", v)} /></Field>
+              <Field label="V H→G" icon="ground"><NumberInput value={obs.VHG} onChange={(v) => so("VHG", v)} /></Field>
+              <Field label="V N→G" icon="neutral"><NumberInput value={obs.VNG} onChange={(v) => so("VNG", v)} /></Field>
             </div>
 
-            <SectionHeader label="Loaded measurements" />
+            <SectionHeader label="Loaded measurements" icon="load" />
             <div style={grid3}>
-              <Field label="Load W">        <NumberInput value={obs.loadW}     onChange={(v) => so("loadW",     v)} /></Field>
-              <Field label="V H→N loaded">  <NumberInput value={obs.vhnLoaded} onChange={(v) => so("vhnLoaded", v)} /></Field>
-              <Field label="V N→G loaded">  <NumberInput value={obs.vngLoaded} onChange={(v) => so("vngLoaded", v)} /></Field>
-              <Field label="V drop">        <NumberInput value={obs.dropV}     onChange={(v) => so("dropV",     v)} /></Field>
+              <Field label="Load W" icon="load">        <NumberInput value={obs.loadW}     onChange={(v) => so("loadW",     v)} /></Field>
+              <Field label="V H→N loaded" icon="hot">  <NumberInput value={obs.vhnLoaded} onChange={(v) => so("vhnLoaded", v)} /></Field>
+              <Field label="V N→G loaded" icon="neutral">  <NumberInput value={obs.vngLoaded} onChange={(v) => so("vngLoaded", v)} /></Field>
+              <Field label="V drop" icon="voltage">        <NumberInput value={obs.dropV}     onChange={(v) => so("dropV",     v)} /></Field>
             </div>
 
-            <SectionHeader label="Continuity (breaker OFF) & behaviour" />
+            <SectionHeader label="Continuity (breaker OFF) & behaviour" icon="continuity" />
             <div style={grid3}>
-              <Field label="Ground cont Ω (OL=open)"><NumberInput value={obs.Gcont}      onChange={(v) => so("Gcont",       v)} /></Field>
-              <Field label="Fritting decay?">         <TriToggle value={obs.frittingObs}  onChange={(v) => so("frittingObs", v)} /></Field>
-              <Field label="Thermal hotspot">         <Select    value={obs.thermalSlot ?? "none"} options={THERMALS} onChange={(v) => so("thermalSlot", v)} /></Field>
-              <Field label="Wiggle-sensitive?">       <TriToggle value={obs.wiggleObs}    onChange={(v) => so("wiggleObs",   v)} /></Field>
-              <Field label="AFCI trips?">             <TriToggle value={obs.afciTrip}     onChange={(v) => so("afciTrip",    v)} /></Field>
-              <Field label="GFCI trips?">             <TriToggle value={obs.gfciTrip}     onChange={(v) => so("gfciTrip",    v)} /></Field>
+              <Field label="Ground cont Ω (OL=open)" icon="continuity"><NumberInput value={obs.Gcont}      onChange={(v) => so("Gcont",       v)} /></Field>
+              <Field label="Fritting decay?" icon="arc">         <TriToggle value={obs.frittingObs}  onChange={(v) => so("frittingObs", v)} /></Field>
+              <Field label="Thermal hotspot" icon="thermal">         <Select    value={obs.thermalSlot ?? "none"} options={THERMALS} onChange={(v) => so("thermalSlot", v)} /></Field>
+              <Field label="Wiggle-sensitive?" icon="wiggle">       <TriToggle value={obs.wiggleObs}    onChange={(v) => so("wiggleObs",   v)} /></Field>
+              <Field label="AFCI trips?" icon="afci">             <TriToggle value={obs.afciTrip}     onChange={(v) => so("afciTrip",    v)} /></Field>
+              <Field label="GFCI trips?" icon="gfci">             <TriToggle value={obs.gfciTrip}     onChange={(v) => so("gfciTrip",    v)} /></Field>
             </div>
 
-            <SectionHeader label="Safety-critical checks" />
+            <SectionHeader label="Safety-critical checks" icon="shield" />
             <div style={grid3}>
-              <Field label="Real ground wire?">      <TriToggle value={obs.hasGroundWire}   onChange={(v) => so("hasGroundWire",   v)} /></Field>
-              <Field label="Gnd-pin→earth tested?">  <TriToggle value={obs.groundRefTested} onChange={(v) => so("groundRefTested", v)} /></Field>
+              <Field label="Real ground wire?" icon="ground">      <TriToggle value={obs.hasGroundWire}   onChange={(v) => so("hasGroundWire",   v)} /></Field>
+              <Field label="Gnd-pin→earth tested?" icon="ground">  <TriToggle value={obs.groundRefTested} onChange={(v) => so("groundRefTested", v)} /></Field>
             </div>
           </Card>
 
           <Card title="CONTEXT — sets priors & artifact interpretation">
             <div style={grid3}>
-              <Field label="Build era">     <Select value={meta.era}     options={ERAS}        onChange={(v) => setScratchMeta({ era: v })} /></Field>
-              <Field label="Wire material"> <Select value={meta.wireMat} options={WIRES}       onChange={(v) => setScratchMeta({ wireMat: v })} /></Field>
-              <Field label="Meter">         <Select value={meta.meter}   options={METER_NAMES} onChange={(v) => setScratchMeta({ meter: v, meterZ: METERS[v].z })} /></Field>
+              <Field label="Build era" icon="home">     <Select value={meta.era}     options={ERAS}        onChange={(v) => setScratchMeta({ era: v })} /></Field>
+              <Field label="Wire material" icon="circuit"> <Select value={meta.wireMat} options={WIRES}       onChange={(v) => setScratchMeta({ wireMat: v })} /></Field>
+              <Field label="Meter" icon="voltage">         <Select value={meta.meter}   options={METER_NAMES} onChange={(v) => setScratchMeta({ meter: v, meterZ: METERS[v].z })} /></Field>
             </div>
             <div style={{ marginTop: 8, color: C.dimmer, fontSize: 9.5, fontFamily: mono }}>
               Meter Z = {(meta.meterZ / 1e6).toFixed(2)} MΩ · CAT {METERS[meta.meter]?.cat} · {METERS[meta.meter]?.rms ? "True-RMS" : "averaging"}

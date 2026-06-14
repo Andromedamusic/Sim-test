@@ -23,7 +23,7 @@
    - Brighter holo grid major lines; faint vignette; room labels in mono
    - Cinematic empty state
    ════════════════════════════════════════════════════════════════════════════ */
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../../state/store";
 import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta,
          outletWorldPos, nearestEdge, roomPolygonWorld, polygonBBox, type Vec2 } from "../../core";
@@ -108,6 +108,9 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   // Vertex drag — null when idle; set on pointerdown on a vertex handle
   const vertexDrag = useRef<VertexDrag | null>(null);
+  // Pinch-to-zoom — track two active pointer positions
+  const pinch = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const lastPinchDist = useRef<number | null>(null);
   const reduced = useReducedMotion();
 
   if (!model) return null;
@@ -184,10 +187,24 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     // If a vertex drag was just started via onVertexPointerDown, don't pan
     if (vertexDrag.current) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    pinch.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current.size >= 2) {
+      // Entering pinch mode — cancel any single-finger pan
+      drag.current = null;
+      const pts = Array.from(pinch.current.values());
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
+      return;
+    }
     drag.current = { x: e.clientX, y: e.clientY, moved: false };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    // Update pinch tracking map
+    if (pinch.current.has(e.pointerId)) {
+      pinch.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
     // Vertex drag takes priority
     if (vertexDrag.current) {
       const { roomId, vertexIdx } = vertexDrag.current;
@@ -207,6 +224,19 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
       return;
     }
 
+    // Pinch-to-zoom (two pointers active)
+    if (pinch.current.size >= 2) {
+      const pts = Array.from(pinch.current.values());
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastPinchDist.current !== null && dist > 0) {
+        const ratio = dist / lastPinchDist.current;
+        setView((v) => ({ ...v, zoom: Math.max(0.4, Math.min(8, v.zoom * ratio)) }));
+      }
+      lastPinchDist.current = dist;
+      return;
+    }
+
     if (!drag.current) return;
     const dx = e.clientX - drag.current.x, dy = e.clientY - drag.current.y;
     if (Math.abs(dx) + Math.abs(dy) > 6) drag.current.moved = true;
@@ -218,6 +248,9 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    pinch.current.delete(e.pointerId);
+    if (pinch.current.size < 2) lastPinchDist.current = null;
+
     if (vertexDrag.current) {
       vertexDrag.current = null;
       return;
@@ -225,15 +258,20 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
     const wasDrag = drag.current?.moved;
     drag.current = null;
     if (wasDrag) return; // it was a pan, not a tap
+    // Don't fire a tap when releasing from a pinch gesture
+    if (pinch.current.size > 0) return;
     handleTap(toWorld(e));
   };
 
   const handleTap = (w: { x: number; y: number }) => {
-    // hit-test outlets first
+    // hit-test outlets first — ≈44px diameter touch target in screen space
+    const pxPerM = svgRef.current!.clientWidth / vb.w;
+    const tapR = 22 / pxPerM; // 22px radius in world metres
     for (const r of rooms) {
       for (const o of outletsByRoom(r.id)) {
         const p = outletWorldPos(r, o.position);
-        if ((p.x - w.x) ** 2 + (p.y - w.y) ** 2 < 0.18 ** 2 * (1 / view.zoom + 1)) { setSheetOutlet(o.id); return; }
+        const dx = p.x - w.x, dy = p.y - w.y;
+        if (dx * dx + dy * dy < tapR * tapR) { setSheetOutlet(o.id); return; }
       }
     }
     // room hit-test — use polygon point-in-polygon for L-shapes
@@ -439,7 +477,7 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
         <svg
           ref={svgRef}
           viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-          style={{ width: "100%", height: "min(64vh, 640px)", display: "block", cursor: mode === "addOutlet" ? "crosshair" : "grab" }}
+          style={{ width: "100%", height: "min(52vh, 520px)", display: "block", cursor: mode === "addOutlet" ? "crosshair" : "grab" }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -493,6 +531,7 @@ export function FloorplanView({ onDiagnose }: { onDiagnose: () => void }) {
                 heatFill={heatFill}
                 selectedCircuitId={selectedCircuitId}
                 onTapOutlet={setSheetOutlet}
+                reduced={reduced}
               />
             );
           })}
@@ -647,9 +686,10 @@ interface RoomShapeProps {
   heatFill: string | null;
   selectedCircuitId: string | "ALL";
   onTapOutlet: (id: string) => void;
+  reduced: boolean;
 }
 
-function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTapOutlet }: RoomShapeProps) {
+function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTapOutlet, reduced }: RoomShapeProps) {
   const worldPts = roomPolygonWorld(room);
   const pointsAttr = worldPts.map((p) => `${p.x},${p.y}`).join(" ");
 
@@ -720,6 +760,7 @@ function RoomShape({ room, outlets, selected, heatFill, selectedCircuitId, onTap
             y={p.y}
             highlighted={highlighted}
             dimmed={dimmed}
+            reduced={reduced}
             onTap={() => onTapOutlet(o.id)}
           />
         );

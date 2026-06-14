@@ -6,6 +6,7 @@
    All existing logic, handlers and AI panel are preserved exactly.
    ════════════════════════════════════════════════════════════════════════════ */
 import React, { useMemo, useState } from "react";
+import { useReducedMotion } from "../anim";
 import { useStore } from "../../state/store";
 import {
   analyzeOutlet, FAULTS,
@@ -15,7 +16,7 @@ import { buildShareableReport, escalationEligibility, callClaude } from "../../a
 import { getSetting } from "../../data/storage";
 import { C, HUD, mono } from "../theme";
 import {
-  Card, SubH, Row, Field, NumberInput, Select, TriToggle, Pill,
+  Card, Row, Field, NumberInput, Select, TriToggle, Pill, SectionHeader,
 } from "../components";
 import { AnimatedNumber, GlowCard } from "../anim";
 import { Bracket } from "../hud/Bracket";
@@ -52,6 +53,7 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
   const VHG = num(obs.VHG);
   const VNG = num(obs.VNG);
 
+  const reduced = useReducedMotion();
   const readings: { label: string; v: number | null; target: number }[] = [
     { label: "H → N", v: VHN, target: 120 },
     { label: "H → G", v: VHG, target: 120 },
@@ -85,9 +87,9 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
         gap: 6,
         color: C.dimmer,
         fontFamily: mono,
-        fontSize: 8.5,
+        fontSize: 10,
         fontWeight: 700,
-        letterSpacing: 1.8,
+        letterSpacing: 1.5,
         marginRight: 20,
         flexShrink: 0,
       }}>
@@ -98,7 +100,7 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
           background: C.good,
           display: "inline-block",
           boxShadow: `0 0 6px ${C.good}`,
-          animation: "oi-pulse 2s ease-in-out infinite",
+          animation: reduced ? "none" : "oi-pulse 2s ease-in-out infinite",
         }} />
         LIVE TELEMETRY
       </div>
@@ -109,7 +111,7 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
           const col = vClass(v, target);
           return (
             <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 8, letterSpacing: 1 }}>{label}</span>
+              <span style={{ color: C.dim, fontFamily: mono, fontSize: 10, letterSpacing: 1 }}>{label}</span>
               <span style={{
                 color: col,
                 fontFamily: mono,
@@ -131,29 +133,6 @@ function TelemetryStrip({ obs }: { obs: Observation }) {
   );
 }
 
-// ─── HUD section header (diamond tick + letter-spaced label) ─────────────────
-function HudSectionLabel({ text }: { text: string }) {
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      marginTop: 14,
-      marginBottom: 6,
-    }}>
-      <span style={{ color: HUD.cyan, fontSize: 7, lineHeight: 1 }}>◆</span>
-      <span style={{
-        color: HUD.cyan,
-        fontFamily: mono,
-        fontSize: 8.5,
-        fontWeight: 700,
-        letterSpacing: 2,
-        textTransform: "uppercase" as const,
-      }}>{text}</span>
-      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg,${HUD.cyan}33,transparent)` }} />
-    </div>
-  );
-}
 
 export function InferenceView() {
   const { scratchObs, scratchMeta, setScratchObs, setScratchMeta, loadLiveCase } = useStore();
@@ -207,14 +186,14 @@ export function InferenceView() {
               </div>
             }
           >
-            <HudSectionLabel text="No-load voltages (VAC)" />
+            <SectionHeader label="No-load voltages (VAC)" />
             <div style={grid3}>
               <Field label="V H→N"><NumberInput value={obs.VHN} onChange={(v) => so("VHN", v)} /></Field>
               <Field label="V H→G"><NumberInput value={obs.VHG} onChange={(v) => so("VHG", v)} /></Field>
               <Field label="V N→G"><NumberInput value={obs.VNG} onChange={(v) => so("VNG", v)} /></Field>
             </div>
 
-            <HudSectionLabel text="Loaded measurements" />
+            <SectionHeader label="Loaded measurements" />
             <div style={grid3}>
               <Field label="Load W">        <NumberInput value={obs.loadW}     onChange={(v) => so("loadW",     v)} /></Field>
               <Field label="V H→N loaded">  <NumberInput value={obs.vhnLoaded} onChange={(v) => so("vhnLoaded", v)} /></Field>
@@ -222,7 +201,7 @@ export function InferenceView() {
               <Field label="V drop">        <NumberInput value={obs.dropV}     onChange={(v) => so("dropV",     v)} /></Field>
             </div>
 
-            <HudSectionLabel text="Continuity (breaker OFF) & behaviour" />
+            <SectionHeader label="Continuity (breaker OFF) & behaviour" />
             <div style={grid3}>
               <Field label="Ground cont Ω (OL=open)"><NumberInput value={obs.Gcont}      onChange={(v) => so("Gcont",       v)} /></Field>
               <Field label="Fritting decay?">         <TriToggle value={obs.frittingObs}  onChange={(v) => so("frittingObs", v)} /></Field>
@@ -232,7 +211,7 @@ export function InferenceView() {
               <Field label="GFCI trips?">             <TriToggle value={obs.gfciTrip}     onChange={(v) => so("gfciTrip",    v)} /></Field>
             </div>
 
-            <HudSectionLabel text="Safety-critical checks" />
+            <SectionHeader label="Safety-critical checks" />
             <div style={grid3}>
               <Field label="Real ground wire?">      <TriToggle value={obs.hasGroundWire}   onChange={(v) => so("hasGroundWire",   v)} /></Field>
               <Field label="Gnd-pin→earth tested?">  <TriToggle value={obs.groundRefTested} onChange={(v) => so("groundRefTested", v)} /></Field>

@@ -25,10 +25,12 @@ export interface OutletMarkerProps {
   highlighted?: boolean;
   /** Dimmed because another circuit is selected. */
   dimmed?: boolean;
+  /** When true, suppress SVG <animate> elements for prefers-reduced-motion. */
+  reduced?: boolean;
   onTap: () => void;
 }
 
-export function OutletMarker({ outlet, x, y, highlighted = false, dimmed = false, onTap }: OutletMarkerProps) {
+export function OutletMarker({ outlet, x, y, highlighted = false, dimmed = false, reduced = false, onTap }: OutletMarkerProps) {
   const v = outlet.inference?.verdictCode;
   // Unobserved → gray dashed ring
   const observed = !!outlet.inference;
@@ -60,8 +62,8 @@ export function OutletMarker({ outlet, x, y, highlighted = false, dimmed = false
             style={{ opacity: 0.7, transformOrigin: `${x}px ${y}px` }}
           />
           <circle cx={x} cy={y} r={ringR + 0.06} fill="none" stroke="#DC2626" strokeWidth={0.03}>
-            <animate attributeName="r" values={`${ringR};${ringR + 0.22};${ringR}`} dur="1.5s" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.8;0;0.8" dur="1.5s" repeatCount="indefinite" />
+            {!reduced && <animate attributeName="r" values={`${ringR};${ringR + 0.22};${ringR}`} dur="1.5s" repeatCount="indefinite" />}
+            {!reduced && <animate attributeName="opacity" values="0.8;0;0.8" dur="1.5s" repeatCount="indefinite" />}
           </circle>
         </>
       )}

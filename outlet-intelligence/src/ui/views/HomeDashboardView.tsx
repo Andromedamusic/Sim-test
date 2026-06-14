@@ -8,7 +8,7 @@ import { useStore } from "../../state/store";
 import { type HomeHealth } from "../../core";
 import { C, mono, HUD } from "../theme";
 import { GlowCard, useReducedMotion } from "../anim";
-import { Card, Pill } from "../components";
+import { Card, Pill, SectionHeader } from "../components";
 import { Bracket } from "../hud/Bracket";
 import { HealthHero } from "../viz/home/HealthHero";
 import { CircuitBus } from "../viz/home/CircuitBus";
@@ -62,7 +62,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
       {/* ── 2. SYSTEMIC PATTERNS ── */}
       {orderedFlags.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <HudSectionHeader
+          <SectionHeader
             label="SYSTEMIC PATTERNS"
             sub="wiring / circuit-scope — not device-local"
           />
@@ -73,11 +73,13 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
             {orderedFlags.map((f, i) => {
               const uc = URGENCY_COLOR[f.urgency];
               const isImmediate = f.urgency === "IMMEDIATE";
+              // Only pulse the first IMMEDIATE flag — avoid christmas-light effect
+              const isFirstImmediate = isImmediate && i === 0;
               return (
                 <GlowCard
                   key={i}
                   accent={uc}
-                  className={isImmediate && !reduced ? "oi-pulse" : undefined}
+                  className={isFirstImmediate && !reduced ? "oi-pulse" : undefined}
                   style={{
                     background: isImmediate
                       ? "linear-gradient(160deg,#1A0606cc,#100808cc)"
@@ -126,8 +128,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                     <span
                       style={{
                         marginLeft: "auto",
-                        color: HUD.dimmer,
-                        fontSize: 9,
+                        color: C.dim,
+                        fontSize: 10,
                         fontFamily: mono,
                       }}
                     >
@@ -137,8 +139,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                     </span>
                     <span
                       style={{
-                        color: HUD.dimmer,
-                        fontSize: 8.5,
+                        color: C.dim,
+                        fontSize: 10,
                         fontFamily: mono,
                       }}
                     >
@@ -151,7 +153,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                   {/* description */}
                   <div
                     style={{
-                      color: "#FDE68A",
+                      color: C.text,
                       fontSize: 11.5,
                       lineHeight: 1.6,
                       marginBottom: 5,
@@ -173,10 +175,10 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                   >
                     <span
                       style={{
-                        color: HUD.dimmer,
+                        color: C.dim,
                         fontFamily: mono,
-                        fontSize: 8.5,
-                        letterSpacing: 1.5,
+                        fontSize: 10,
+                        letterSpacing: 1,
                         marginRight: 6,
                         textTransform: "uppercase" as const,
                       }}
@@ -195,7 +197,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
       {/* ── 3. BREAKER PANEL (CircuitBus) ── */}
       {health.circuits.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <HudSectionHeader
+          <SectionHeader
             label="BREAKER PANEL"
             sub={`${health.circuits.length} circuit${health.circuits.length !== 1 ? "s" : ""} · bus-bar view`}
           />
@@ -216,7 +218,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
       {/* ── 4. FLOORS & ROOMS (RoomHeatmap) ── */}
       {health.floors.length > 0 && (
         <section className={reduced ? "" : "oi-fadeup"}>
-          <HudSectionHeader
+          <SectionHeader
             label="FLOORS & ROOMS"
             sub="grade heat by room"
           />
@@ -240,7 +242,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
 
       {/* ── 5. PRIORITIZED REMEDIATION ── */}
       <section className={reduced ? "" : "oi-fadeup"}>
-        <HudSectionHeader
+        <SectionHeader
           label="PRIORITIZED REMEDIATION"
           sub="ordered by urgency + impact"
         />
@@ -306,7 +308,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                       position: "relative",
                     }}
                   >
-                    {/* urgency accent bar */}
+                    {/* urgency accent bar — pulse only rank 1 */}
                     {isImmediate && (
                       <div
                         style={{
@@ -319,7 +321,7 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                           background: uc,
                           boxShadow: `0 0 6px ${uc}88`,
                         }}
-                        className={!reduced ? "oi-pulse" : undefined}
+                        className={it.rank === 1 && !reduced ? "oi-pulse" : undefined}
                       />
                     )}
 
@@ -380,8 +382,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
                       <div
                         style={{
                           marginTop: 4,
-                          fontSize: 9,
-                          color: HUD.dimmer,
+                          fontSize: 10,
+                          color: C.dim,
                           fontFamily: mono,
                           textTransform: "uppercase" as const,
                           letterSpacing: 0.8,
@@ -401,8 +403,8 @@ export function HomeDashboardView({ health, onGoMap }: { health: HomeHealth; onG
               {health.remediation.length > 12 && (
                 <div
                   style={{
-                    color: HUD.dimmer,
-                    fontSize: 9.5,
+                    color: C.dim,
+                    fontSize: 10,
                     fontFamily: mono,
                     textAlign: "center",
                     padding: "10px 0 4px",

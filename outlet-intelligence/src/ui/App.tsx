@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 import { rollupHome } from "../core";
 import { C, mono, GRADE_COLOR } from "./theme";
 import { Pill } from "./components";
+import { MotionStyles } from "./anim";
 import { InferenceView } from "./views/InferenceView";
 import { FloorplanView } from "./views/FloorplanView";
 import { HomeDashboardView } from "./views/HomeDashboardView";
@@ -43,6 +44,7 @@ export function App() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", paddingBottom: 64 }}>
+      <MotionStyles />
       {/* header */}
       <header style={{ background: "#0F0F12", borderBottom: `1px solid ${C.border}`, padding: "9px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 20 }}>
         <span style={{ color: C.amber, fontFamily: mono, fontWeight: 800, fontSize: 14 }}>⚡ OUTLET&nbsp;INTELLIGENCE</span>

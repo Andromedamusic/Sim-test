@@ -12,6 +12,7 @@ export function rawPosterior(
   obs: Observation,
   meta: Meta,
   artifactWeights?: ArtifactWeights,
+  priorScale?: Record<string, number>,
 ): Posterior {
   const aw = artifactWeights || {};
   const w: Record<string, number> = {};
@@ -69,8 +70,8 @@ export function rawPosterior(
     if (f.reqAl && meta.wireMat !== "Aluminum") L *= BEHAVIOR.AL_GATE;
     if (obs.hasGroundWire === false && k === "healthy") L *= 0.5;
 
-    // Prior from era
-    const prior = f.basePrior[meta.era] ?? INFERENCE.DEFAULT_ERA_PRIOR;
+    // Prior from era, optionally scaled by locally-learned ground-truth (active learning)
+    const prior = (f.basePrior[meta.era] ?? INFERENCE.DEFAULT_ERA_PRIOR) * (priorScale?.[k] ?? 1);
     w[k] = L * prior;
   }
 

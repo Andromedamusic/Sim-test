@@ -11,21 +11,21 @@ export { PHYSICS, INFERENCE, BEHAVIOR, CRITICS, CONFIDENCE, PROGNOSIS, NBT } fro
 export { gaussLik, gcontLik, num, hasValue, normalize, entropy, topN } from "./likelihood";
 export { rawPosterior } from "./inference";
 export { runCritics } from "./critics";
-export { tribunal } from "./tribunal";
+export { tribunal, type TribunalOpts } from "./tribunal";
 export { nextBestTests, CANDIDATE_TESTS } from "./nextBestTest";
 export { prognose } from "./prognose";
 export { rollupHome, outletRisk } from "./rollup";
 
-import { tribunal } from "./tribunal";
+import { tribunal, type TribunalOpts } from "./tribunal";
 import { nextBestTests } from "./nextBestTest";
 import type { Observation, Meta } from "./types";
 
 /** Engine semantic version — stamped onto persisted results & exports. */
-export const ENGINE_VERSION = "1.0.0";
+export const ENGINE_VERSION = "1.1.0";
 
 /** Convenience: full per-outlet analysis (verdict + ranked next tests). */
-export function analyzeOutlet(obs: Observation, meta: Meta) {
-  const result = tribunal(obs, meta);
+export function analyzeOutlet(obs: Observation, meta: Meta, opts?: TribunalOpts) {
+  const result = tribunal(obs, meta, opts);
   const nbt = nextBestTests(obs, meta, result.post);
   return { ...result, nextBestTests: nbt, engineVersion: ENGINE_VERSION };
 }

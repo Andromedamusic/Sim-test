@@ -11,15 +11,20 @@ import { normalize, entropy, topN, num } from "./likelihood";
 import { CRITICS, CONFIDENCE, SAFETY } from "./config";
 import type { Observation, Meta, TribunalResult, Posterior, VerdictCode } from "./types";
 
-export function tribunal(obs: Observation, meta: Meta): TribunalResult {
+export interface TribunalOpts {
+  /** per-fault prior multipliers from locally-learned ground truth (active learning). */
+  priorScale?: Record<string, number>;
+}
+
+export function tribunal(obs: Observation, meta: Meta, opts?: TribunalOpts): TribunalResult {
   const critics = runCritics(obs, meta);
   const artifact = critics.find((c) => c.id === "artifact")!;
   const conservation = critics.find((c) => c.id === "conservation")!;
   const worstcase = critics.find((c) => c.id === "worstcase")!;
   const parsimony = critics.find((c) => c.id === "parsimony")!;
 
-  // 1. base posterior with artifact-discounted weights
-  let post: Posterior = rawPosterior(obs, meta, artifact.weights);
+  // 1. base posterior with artifact-discounted weights (+ optional learned prior scale)
+  let post: Posterior = rawPosterior(obs, meta, artifact.weights, opts?.priorScale);
   // 2. conservation vetoes
   for (const v of conservation.veto || []) post[v] = (post[v] || 0) * CRITICS.VETO_FACTOR;
   // 3. parsimony penalty

@@ -55,6 +55,28 @@ export async function ensureDefaultHome(): Promise<HomeModel> {
   return { home, floors: [floor], rooms: [], circuits: [], outlets: [] };
 }
 
+// ─── Multi-home management ────────────────────────────────────────────────────
+export async function createHome(name: string): Promise<HomeModel> {
+  const ts = nowISO();
+  const home: HomeNode = { id: uid(), name: name?.trim() || "New Home", defaultMeta: { ...DEFAULT_META }, createdAt: ts, updatedAt: ts };
+  const floor: FloorNode = { id: uid(), homeId: home.id, level: 1, name: "Main Floor", createdAt: ts, updatedAt: ts };
+  await db.homes.put(home);
+  await db.floors.put(floor);
+  return { home, floors: [floor], rooms: [], circuits: [], outlets: [] };
+}
+
+export async function renameHome(id: string, name: string): Promise<void> {
+  const h = await db.homes.get(id);
+  if (h) await db.homes.put({ ...h, name: name.trim() || h.name, updatedAt: nowISO() });
+}
+
+export async function deleteHome(id: string): Promise<void> {
+  const floors = await db.floors.where("homeId").equals(id).toArray();
+  for (const f of floors) await deleteFloor(f.id);
+  await db.circuits.where("homeId").equals(id).delete();
+  await db.homes.delete(id);
+}
+
 // ─── Write-through (entity puts/deletes) ──────────────────────────────────────
 export const putHome = (h: HomeNode) => db.homes.put({ ...h, updatedAt: nowISO() });
 export const putFloor = (f: FloorNode) => db.floors.put({ ...f, updatedAt: nowISO() });

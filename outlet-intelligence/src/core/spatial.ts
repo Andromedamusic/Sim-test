@@ -11,9 +11,12 @@ export type OutletType = "DUPLEX" | "GFCI" | "AFCI" | "USB" | "DRYER_240" | "RAN
 
 export interface OutletPosition {
   wallId: WallId;
-  offset: number; // 0..1 along the wall from its left corner (facing in)
+  offset: number; // 0..1 along the wall/edge from its start
   height_m?: number;
+  edge?: number; // index into roomEdges() for polygon rooms (overrides wallId)
 }
+
+export type Vec2 = { x: number; y: number };
 
 export interface PhotoRef {
   id: UUID;
@@ -41,9 +44,11 @@ export interface RoomNode {
   id: UUID;
   floorId: UUID;
   name: string;
-  width_m: number; // E/W wall length
-  depth_m: number; // N/S wall length
+  width_m: number; // E/W bounding-box length
+  depth_m: number; // N/S bounding-box length
   floorOffset: { x: number; y: number }; // position within floor frame (m)
+  /** Optional polygon (local coords, origin = floorOffset) for L-shaped / non-rect rooms. */
+  polygon?: Vec2[];
   createdAt: string;
   updatedAt: string;
 }
@@ -171,4 +176,60 @@ export interface HomeHealth {
   systemicFlags: SystemicFlag[];
   remediation: RemediationItem[];
   computedAt: string;
+}
+
+// ─── Room geometry helpers (rectangle + polygon, shared by editor & viz) ──────
+export function rectCorners(r: RoomNode): Vec2[] {
+  const { x, y } = r.floorOffset;
+  return [{ x, y }, { x: x + r.width_m, y }, { x: x + r.width_m, y: y + r.depth_m }, { x, y: y + r.depth_m }];
+}
+
+/** Room outline in WORLD coordinates (polygon if present, else rectangle). */
+export function roomPolygonWorld(r: RoomNode): Vec2[] {
+  if (r.polygon && r.polygon.length >= 3) return r.polygon.map((p) => ({ x: p.x + r.floorOffset.x, y: p.y + r.floorOffset.y }));
+  return rectCorners(r);
+}
+
+export function roomEdges(r: RoomNode): Array<{ a: Vec2; b: Vec2 }> {
+  const pts = roomPolygonWorld(r);
+  return pts.map((p, i) => ({ a: p, b: pts[(i + 1) % pts.length] }));
+}
+
+/** World position of an outlet on its room's wall/edge. */
+export function outletWorldPos(r: RoomNode, pos: OutletPosition): Vec2 {
+  if (r.polygon && r.polygon.length >= 3 && pos.edge != null) {
+    const edges = roomEdges(r);
+    const e = edges[Math.min(pos.edge, edges.length - 1)];
+    return { x: e.a.x + (e.b.x - e.a.x) * pos.offset, y: e.a.y + (e.b.y - e.a.y) * pos.offset };
+  }
+  const { x: ox, y: oy } = r.floorOffset;
+  switch (pos.wallId) {
+    case "N": return { x: ox + pos.offset * r.width_m, y: oy };
+    case "S": return { x: ox + pos.offset * r.width_m, y: oy + r.depth_m };
+    case "W": return { x: ox, y: oy + pos.offset * r.depth_m };
+    case "E": return { x: ox + r.width_m, y: oy + pos.offset * r.depth_m };
+  }
+}
+
+/** Nearest wall/edge to a world point — used when placing an outlet by tap. */
+export function nearestEdge(r: RoomNode, w: Vec2): { edge: number; offset: number; wallId: WallId } {
+  const edges = roomEdges(r);
+  let best = 0, bestD = Infinity, bestOff = 0.5;
+  edges.forEach((e, i) => {
+    const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    let t = ((w.x - e.a.x) * dx + (w.y - e.a.y) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const px = e.a.x + dx * t, py = e.a.y + dy * t;
+    const d = (px - w.x) ** 2 + (py - w.y) ** 2;
+    if (d < bestD) { bestD = d; best = i; bestOff = t; }
+  });
+  const wallId: WallId = (["N", "E", "S", "W"] as WallId[])[best % 4] ?? "N";
+  return { edge: best, offset: Math.max(0.04, Math.min(0.96, bestOff)), wallId };
+}
+
+/** Axis-aligned bounding box of a polygon (local coords) → width/depth. */
+export function polygonBBox(poly: Vec2[]): { width_m: number; depth_m: number } {
+  const xs = poly.map((p) => p.x), ys = poly.map((p) => p.y);
+  return { width_m: Math.max(...xs) - Math.min(...xs), depth_m: Math.max(...ys) - Math.min(...ys) };
 }

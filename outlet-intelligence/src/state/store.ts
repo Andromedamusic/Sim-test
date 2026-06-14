@@ -5,13 +5,16 @@
    ════════════════════════════════════════════════════════════════════════════ */
 import { create } from "zustand";
 import {
-  tribunal, analyzeOutlet,
-  type Observation, type Meta, type HomeModel, type OutletNode, type RoomNode,
+  tribunal, analyzeOutlet, priorScaleFromCounts,
+  type Observation, type Meta, type HomeModel, type HomeNode, type OutletNode, type RoomNode,
   type FloorNode, type CircuitNode, type OutletPosition, type OutletType, type HomeExportDoc,
   type PhotoRef,
 } from "../core";
 import * as S from "../data/storage";
 import { db, requestPersistence } from "../data/db";
+import { type SyncConfig, pushHome, pullHome, syncConfigured, newerDoc } from "../sync/remote";
+
+export interface SyncStatus { state: "idle" | "syncing" | "ok" | "error"; message?: string; at?: string }
 
 const LIVE_CASE: Observation = { VHN: "116", VHG: "15", VNG: "0.5", Gcont: "0.3", frittingObs: true, thermalSlot: "none" };
 
@@ -29,14 +32,33 @@ interface AppState {
   scratchMeta: Meta;
   rev: number; // bump to force rollup recompute consumers
 
-  /** Active-learning: per-fault prior multipliers from recorded ground truths. */
+  /** Active-learning: per-fault prior multipliers derived from learnCounts. */
   priorScale: Record<string, number>;
+  /** Active-learning: confirmed ground-truth counts per fault. */
+  learnCounts: Record<string, number>;
 
   /** Circuit tracer: which circuit is being traced right now (null = idle). */
   tracerCircuitId: string | null;
 
+  /** Multi-home. */
+  homes: HomeNode[];
+  /** Cloud sync. */
+  syncConfig: SyncConfig | null;
+  syncStatus: SyncStatus;
+
   init: () => Promise<void>;
   reloadModel: (homeId?: string) => Promise<void>;
+
+  // ── Multi-home ─────────────────────────────────────────────────────────────
+  refreshHomes: () => Promise<void>;
+  createHomeAndSwitch: (name: string) => Promise<void>;
+  switchHome: (homeId: string) => Promise<void>;
+  renameCurrentHome: (name: string) => Promise<void>;
+  deleteHomeAndSwitch: (homeId: string) => Promise<void>;
+
+  // ── Cloud sync ─────────────────────────────────────────────────────────────
+  setSyncConfig: (config: SyncConfig | null) => Promise<void>;
+  syncNow: () => Promise<void>;
 
   selectFloor: (id: string | null) => void;
   selectRoom: (id: string | null) => void;
@@ -92,19 +114,79 @@ export const useStore = create<AppState>((set, get) => ({
   scratchMeta: { ...S.DEFAULT_META },
   rev: 0,
   priorScale: {},
+  learnCounts: {},
   tracerCircuitId: null,
+  homes: [],
+  syncConfig: null,
+  syncStatus: { state: "idle" },
 
   init: async () => {
     requestPersistence();
-    const [model, priorScale] = await Promise.all([
+    const [model, learnCounts, syncConfig, homes] = await Promise.all([
       S.ensureDefaultHome(),
-      S.getSetting<Record<string, number>>("priorScale", {}),
+      S.getSetting<Record<string, number>>("learnCounts", {}),
+      S.getSetting<SyncConfig | null>("syncConfig", null),
+      S.listHomes(),
     ]);
     set({
-      model, ready: true, priorScale,
+      model, ready: true, learnCounts, syncConfig, homes,
+      priorScale: priorScaleFromCounts(learnCounts),
       activeFloorId: model.floors[0]?.id ?? null,
       scratchMeta: { ...model.home.defaultMeta },
     });
+  },
+
+  refreshHomes: async () => set({ homes: await S.listHomes() }),
+
+  createHomeAndSwitch: async (name) => {
+    const model = await S.createHome(name);
+    set({ model, homes: await S.listHomes(), activeFloorId: model.floors[0]?.id ?? null, activeRoomId: null, activeOutletId: null, rev: get().rev + 1, scratchMeta: { ...model.home.defaultMeta } });
+  },
+
+  switchHome: async (homeId) => {
+    const model = await S.loadHomeModel(homeId);
+    if (!model) return;
+    set({ model, activeFloorId: model.floors[0]?.id ?? null, activeRoomId: null, activeOutletId: null, rev: get().rev + 1, scratchMeta: { ...model.home.defaultMeta } });
+  },
+
+  renameCurrentHome: async (name) => {
+    const home = get().model?.home;
+    if (!home) return;
+    await S.renameHome(home.id, name);
+    await get().reloadModel(home.id);
+    set({ homes: await S.listHomes() });
+  },
+
+  deleteHomeAndSwitch: async (homeId) => {
+    await S.deleteHome(homeId);
+    const next = await S.ensureDefaultHome();
+    set({ model: next, homes: await S.listHomes(), activeFloorId: next.floors[0]?.id ?? null, activeRoomId: null, activeOutletId: null, rev: get().rev + 1 });
+  },
+
+  setSyncConfig: async (config) => {
+    await S.setSetting("syncConfig", config);
+    set({ syncConfig: config });
+  },
+
+  syncNow: async () => {
+    const { syncConfig, model } = get();
+    if (!syncConfigured(syncConfig) || !model) { set({ syncStatus: { state: "error", message: "No sync endpoint configured." } }); return; }
+    set({ syncStatus: { state: "syncing" } });
+    try {
+      const local = await S.exportHome(model.home.id);
+      if (!local) throw new Error("Nothing to sync.");
+      const remote = await pullHome(syncConfig, model.home.id);
+      if (newerDoc(local, remote) === "remote" && remote) {
+        await S.importHome(remote);
+        await get().reloadModel(model.home.id);
+        set({ syncStatus: { state: "ok", message: "Pulled newer remote copy.", at: new Date().toISOString() }, homes: await S.listHomes() });
+      } else {
+        await pushHome(syncConfig, local);
+        set({ syncStatus: { state: "ok", message: "Pushed local copy.", at: new Date().toISOString() } });
+      }
+    } catch (e) {
+      set({ syncStatus: { state: "error", message: (e as Error).message } });
+    }
   },
 
   reloadModel: async (homeId) => {
@@ -217,27 +299,19 @@ export const useStore = create<AppState>((set, get) => ({
     if (!outlet) return;
     const predicted = outlet.inference?.topFault ?? "";
     await S.addFeedback({ outletId, predictedFault: predicted, actualFault: actualFaultId, note: note ?? "" });
-    // Decaying reinforcement: every correction pulls all existing boosts 10% back
-    // toward neutral (1.0), then reinforces the confirmed fault. Stale evidence
-    // fades, so a single early misread can't permanently pin a prior at the cap.
-    const prev = st.priorScale;
-    const next: Record<string, number> = {};
-    for (const [k, v] of Object.entries(prev)) {
-      const decayed = 1 + (v - 1) * 0.9;
-      if (Math.abs(decayed - 1) > 0.02) next[k] = clampScale(decayed);
-    }
-    next[actualFaultId] = clampScale((prev[actualFaultId] ?? 1) * 1.22);
-    await S.setSetting("priorScale", next);
-    set({ priorScale: next });
+    // Count-based Dirichlet update: increment the confirmed fault's count and
+    // re-derive the per-fault prior scale from the full count vector.
+    const learnCounts = { ...st.learnCounts, [actualFaultId]: (st.learnCounts[actualFaultId] ?? 0) + 1 };
+    const priorScale = priorScaleFromCounts(learnCounts);
+    await S.setSetting("learnCounts", learnCounts);
+    set({ learnCounts, priorScale });
     // Re-run engine so the outlet's cached inference reflects new priors immediately
-    if (outlet.observation) {
-      await get().measureOutlet(outletId, outlet.observation);
-    }
+    if (outlet.observation) await get().measureOutlet(outletId, outlet.observation);
   },
 
   resetLearning: async () => {
-    await S.setSetting("priorScale", {});
-    set({ priorScale: {} });
+    await S.setSetting("learnCounts", {});
+    set({ learnCounts: {}, priorScale: {} });
   },
 
   // ── Photo management ─────────────────────────────────────────────────────

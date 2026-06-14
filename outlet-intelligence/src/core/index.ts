@@ -15,6 +15,7 @@ export { tribunal, type TribunalOpts } from "./tribunal";
 export { nextBestTests, CANDIDATE_TESTS } from "./nextBestTest";
 export { prognose } from "./prognose";
 export { rollupHome, outletRisk } from "./rollup";
+export { priorScaleFromCounts, referenceBaseFreq, type LearningConfig } from "./learning";
 
 import { tribunal, type TribunalOpts } from "./tribunal";
 import { nextBestTests } from "./nextBestTest";

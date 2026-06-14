@@ -4,7 +4,7 @@
    animated top scan-line, pulsing red frame on hold, and telemetry chips.
    ════════════════════════════════════════════════════════════════════════════ */
 import React from "react";
-import { RadialGauge, AnimatedNumber, GlowCard, useReducedMotion } from "../../anim";
+import { RadialGauge, useReducedMotion } from "../../anim";
 import { C, HUD, mono, holoGrad, amberGrad } from "../../theme";
 import { Bracket } from "../../hud/Bracket";
 import { FAULTS } from "../../../core";
@@ -141,7 +141,7 @@ export function VerdictCluster({ result }: { result: Result }) {
             size={168}
             thickness={13}
             color={result.vColor}
-            label={vWord}
+            label={`${Math.round(confidencePct)}%`}
             sublabel="CONFIDENCE"
             glow
           />
@@ -162,14 +162,6 @@ export function VerdictCluster({ result }: { result: Result }) {
             letterSpacing: 1,
           }}>
             {vWord}
-          </div>
-
-          {/* Confidence readout */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 8.5, letterSpacing: 1.2 }}>CONFIDENCE</span>
-            <span style={{ color: result.vColor, fontFamily: mono, fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
-              <AnimatedNumber value={confidencePct} decimals={1} suffix="%" />
-            </span>
           </div>
 
           {/* Telemetry chips row */}

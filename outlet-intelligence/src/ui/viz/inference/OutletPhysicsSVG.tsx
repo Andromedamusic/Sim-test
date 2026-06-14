@@ -290,13 +290,8 @@ export function OutletPhysicsSVG({ obs, result }: Props) {
           sublabel={ghostVoltage ? "phantom" : undefined}
         />
 
-        {/* H→N voltage (face centre) */}
-        {VHN !== null && (
-          <text x={CX} y={BODY_CY + BODY_RY - 14}
-            textAnchor="middle" fontFamily={mono} fontSize={9} fill={C.dimmer}>
-            H↔N: {fmtV(VHN)}
-          </text>
-        )}
+        {/* (H↔N is shown in the LIVE TELEMETRY strip above — omitted here to
+            avoid colliding with the ground/phantom callout.) */}
 
         {/* REV polarity badge */}
         {reversed && (

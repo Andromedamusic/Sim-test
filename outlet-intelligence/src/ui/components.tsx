@@ -4,10 +4,23 @@ import { C, mono } from "./theme";
 
 export function Card({ title, right, children, style }: { title?: string; right?: React.ReactNode; children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 13, minWidth: 0, ...style }}>
+    <div style={{
+      position: "relative",
+      background: "linear-gradient(165deg, rgba(17,26,40,0.66), rgba(8,13,21,0.72))",
+      backdropFilter: "blur(7px)",
+      border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, minWidth: 0,
+      boxShadow: "0 12px 34px -22px #000, inset 0 1px 0 rgba(255,255,255,0.03)",
+      ...style,
+    }}>
+      <span style={{ position: "absolute", left: 14, right: 14, top: 0, height: 1, background: `linear-gradient(90deg,transparent,${C.blue}55,transparent)` }} />
       {(title || right) && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
-          {title && <div style={{ color: C.dimmer, fontSize: 9, fontFamily: mono, fontWeight: 700, letterSpacing: 1 }}>{title}</div>}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 11, gap: 8 }}>
+          {title && (
+            <div style={{ display: "flex", alignItems: "center", gap: 7, color: C.blue, fontSize: 9, fontFamily: mono, fontWeight: 800, letterSpacing: 1.5 }}>
+              <span style={{ width: 5, height: 5, background: C.blue, boxShadow: `0 0 6px ${C.blue}`, transform: "rotate(45deg)", flexShrink: 0 }} />
+              {title}
+            </div>
+          )}
           {right}
         </div>
       )}

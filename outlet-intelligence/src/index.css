@@ -1,9 +1,9 @@
 :root {
   color-scheme: dark;
-  --bg: #0a0a0c;
-  --panel: #16161a;
-  --border: #2e2e36;
-  --text: #e4e4e7;
+  --bg: #04060b;
+  --panel: #0d131d;
+  --border: #202c3d;
+  --text: #e6edf6;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }

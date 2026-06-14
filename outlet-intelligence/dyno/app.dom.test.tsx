@@ -40,7 +40,7 @@ describe("App runtime", () => {
   it("renders every tab without throwing", async () => {
     render(<App />);
     await screen.findByText(/WHOLE-HOME ELECTRICAL HEALTH/i, {}, { timeout: 5000 });
-    for (const tab of ["Map", "Diagnose", "Panel", "Atlas", "Prognosis", "Learning", "Report", "Reference", "Settings", "Home"]) {
+    for (const tab of ["Map", "Diagnose", "Panel", "Atlas", "Prognosis", "Learning", "Report", "Reference", "Settings", "Command"]) {
       await act(async () => { clickTab(tab); });
       // a representative element renders for each
       await waitFor(() => expect(document.querySelectorAll("button, svg, input").length).toBeGreaterThan(0));

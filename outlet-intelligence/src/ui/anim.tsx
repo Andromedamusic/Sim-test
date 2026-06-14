@@ -42,8 +42,15 @@ export function MotionStyles() {
       .oi-press{transition:transform .08s ease}.oi-press:active{transform:scale(.95)}
       .oi-lift{transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s,border-color .18s}
       .oi-lift:hover{transform:translateY(-2px)}
+      .oi-spin-slow{animation:oi-spin 2.4s linear infinite}
+      @keyframes oi-bootbar{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+      .oi-bootbar{animation:oi-bootbar 1.3s ease-in-out infinite}
+      @keyframes oi-navin{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+      .oi-navin{animation:oi-navin .4s cubic-bezier(.2,.7,.2,1) both}
+      @keyframes oi-wipe{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+      .oi-wipe{animation:oi-wipe .45s cubic-bezier(.4,0,.1,1) both}
       @media (prefers-reduced-motion: reduce){
-        .oi-fadeup,.oi-popin,.oi-pulse,.oi-glow,.oi-float,.oi-stagger>*,.oi-shimmer,.oi-flow{animation:none !important}
+        .oi-fadeup,.oi-popin,.oi-pulse,.oi-glow,.oi-float,.oi-stagger>*,.oi-shimmer,.oi-flow,.oi-spin-slow,.oi-bootbar,.oi-navin,.oi-wipe{animation:none !important}
       }
     `}</style>
   );

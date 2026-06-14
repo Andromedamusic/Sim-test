@@ -8,7 +8,8 @@ import React, { useMemo } from "react";
 import { useStore } from "../../state/store";
 import { rollupHome, FAULTS } from "../../core";
 import type { HomeHealth, RemediationItem, SystemicFlag, OutletHealth } from "../../core";
-import { C, mono, GRADE_COLOR, VERDICT_COLOR } from "../theme";
+import { C, mono, GRADE_COLOR, VERDICT_COLOR, HUD, glow } from "../theme";
+import { Bracket } from "../hud/Bracket";
 
 // ─── local style helpers ──────────────────────────────────────────────────────
 const TH: React.CSSProperties = {
@@ -126,6 +127,16 @@ function SafetyHoldBanner(): React.ReactElement {
   );
 }
 
+// ─── HUD section header (screen only — prints as regular SECTION_HEAD) ────────
+function HudSectionHead({ label, className }: { label: string; className?: string }): React.ReactElement {
+  return (
+    <div className={className} style={{ ...SECTION_HEAD, display: "flex", alignItems: "center", gap: 7 }}>
+      <span style={{ color: HUD.cyan, fontSize: 9, lineHeight: 1 }} aria-hidden="true">◆</span>
+      <span style={{ letterSpacing: 2 }}>{label}</span>
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 export function ReportView(): React.ReactElement {
   const model = useStore((s) => s.model);
@@ -232,6 +243,8 @@ export function ReportView(): React.ReactElement {
     return { fault: reason.slice(0, dash), action: reason.slice(dash + 3) };
   }
 
+  const gradeColor = GRADE_COLOR[health.grade] ?? C.dim;
+
   return (
     <>
       {/* ── print / screen styles ────────────────────────────────────── */}
@@ -312,8 +325,16 @@ export function ReportView(): React.ReactElement {
             border-bottom: 2px solid #555 !important;
             color: #333 !important;
           }
+          /* hide HUD diamond accent from print */
+          .report .hud-diamond {
+            display: none !important;
+          }
           .report .print-dim {
             color: #555 !important;
+          }
+          /* hide on-screen hero grade from print (covered by inline text) */
+          .report .screen-grade-hero {
+            display: none !important;
           }
           /* page breaks */
           .report .report-section {
@@ -335,31 +356,52 @@ export function ReportView(): React.ReactElement {
       <div className="report-wrapper">
         {/* ── toolbar (hidden when printing) ──────────────────────────── */}
         <div className="report-toolbar no-print">
-          <button
-            onClick={() => window.print()}
-            style={{
-              background: C.blue,
-              color: C.bg,
-              border: `1px solid ${C.blue}`,
-              borderRadius: 7,
-              padding: "9px 16px",
-              fontFamily: mono,
-              fontWeight: 700,
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            🖨 Print / Save as PDF
-          </button>
-          <span
-            style={{
-              color: C.dimmer,
-              fontFamily: mono,
-              fontSize: 11,
-            }}
-          >
-            In the print dialog, choose "Save as PDF" from the destination dropdown to export offline.
-          </span>
+          {/* HUD toolbar panel */}
+          <div style={{
+            position: "relative",
+            background: HUD.panel,
+            border: `1px solid ${HUD.line}`,
+            borderRadius: 10,
+            padding: "10px 14px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            width: "100%",
+            maxWidth: 900,
+            margin: "0 auto",
+            boxSizing: "border-box",
+          }}>
+            <Bracket color={HUD.cyan} size={8} inset={3} weight={1} opacity={0.45} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+              <span style={{ color: HUD.cyan, fontSize: 8 }}>◆</span>
+              <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: HUD.cyan, textTransform: "uppercase" as const }}>
+                Inspection Report
+              </span>
+              <span style={{ color: HUD.line, margin: "0 4px" }}>|</span>
+              <span style={{ fontFamily: mono, fontSize: 10, color: HUD.dimmer }}>{reportDate}</span>
+            </div>
+            <button
+              onClick={() => window.print()}
+              style={{
+                background: HUD.cyan,
+                color: "#04060B",
+                border: `1px solid ${HUD.cyan}`,
+                borderRadius: 7,
+                padding: "9px 16px",
+                fontFamily: mono,
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer",
+                boxShadow: glow(HUD.cyan, 0.35),
+              }}
+            >
+              🖨 Print / Save as PDF
+            </button>
+            <span style={{ color: C.dimmer, fontFamily: mono, fontSize: 10 }}>
+              Choose "Save as PDF" from the print destination to export offline.
+            </span>
+          </div>
         </div>
 
         {/* ── report body ──────────────────────────────────────────────── */}
@@ -420,13 +462,35 @@ export function ReportView(): React.ReactElement {
               />
             </div>
 
-            {/* overall grade + risk */}
+            {/* overall grade + risk — HUD hero on screen, plain inline text for print */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontFamily: mono, fontWeight: 700, fontSize: 13, color: C.dim }}>
                 Overall Grade:
               </span>
               <span className="print-grade-badge">
                 <GradeBadge grade={health.grade} />
+              </span>
+              {/* Screen-only holo grade hero */}
+              <span
+                className="screen-grade-hero no-print"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 8,
+                  background: gradeColor + "1A",
+                  border: `2px solid ${gradeColor}`,
+                  boxShadow: glow(gradeColor, 0.45),
+                  fontFamily: mono,
+                  fontWeight: 900,
+                  fontSize: 16,
+                  color: gradeColor,
+                  letterSpacing: 0.5,
+                }}
+              >
+                {health.grade}
               </span>
               <span style={{ fontFamily: mono, fontSize: 11, color: C.dimmer }} className="print-dim">
                 Risk Score: {(health.risk * 100).toFixed(0)}%
@@ -443,9 +507,7 @@ export function ReportView(): React.ReactElement {
 
           {/* ── SUMMARY ──────────────────────────────────────────────── */}
           <div className="report-section">
-            <div className="print-section-head" style={SECTION_HEAD}>
-              Summary
-            </div>
+            <HudSectionHead label="Summary" className="print-section-head" />
             <table style={{ ...TABLE, marginBottom: 8 }}>
               <tbody>
                 <SummaryRow label="Floors" value={String(model.floors.length)} />
@@ -474,9 +536,7 @@ export function ReportView(): React.ReactElement {
           {/* ── PER-FLOOR GRADE SUMMARY ───────────────────────────────── */}
           {health.floors.length > 0 && (
             <div className="report-section">
-              <div className="print-section-head" style={SECTION_HEAD}>
-                Floor Grades
-              </div>
+              <HudSectionHead label="Floor Grades" className="print-section-head" />
               <table style={TABLE}>
                 <thead>
                   <tr>
@@ -511,9 +571,7 @@ export function ReportView(): React.ReactElement {
           {/* ── SYSTEMIC PATTERNS ────────────────────────────────────── */}
           {health.systemicFlags.length > 0 && (
             <div className="report-section">
-              <div className="print-section-head" style={SECTION_HEAD}>
-                Systemic Patterns Detected
-              </div>
+              <HudSectionHead label="Systemic Patterns Detected" className="print-section-head" />
               {health.systemicFlags.map((flag, i) => (
                 <div
                   key={i}
@@ -583,9 +641,7 @@ export function ReportView(): React.ReactElement {
           {/* ── PRIORITIZED REMEDIATION ──────────────────────────────── */}
           {health.remediation.length > 0 && (
             <div className="report-section">
-              <div className="print-section-head" style={SECTION_HEAD}>
-                Prioritized Remediation
-              </div>
+              <HudSectionHead label="Prioritized Remediation" className="print-section-head" />
               <table style={TABLE}>
                 <thead>
                   <tr>
@@ -668,9 +724,7 @@ export function ReportView(): React.ReactElement {
 
           {/* ── PER-ROOM OUTLET BREAKDOWN ────────────────────────────── */}
           <div className="report-section">
-            <div className="print-section-head" style={SECTION_HEAD}>
-              Per-Room Outlet Breakdown
-            </div>
+            <HudSectionHead label="Per-Room Outlet Breakdown" className="print-section-head" />
             {outletRows.length === 0 ? (
               <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11 }}>
                 No outlets recorded.
@@ -752,9 +806,7 @@ export function ReportView(): React.ReactElement {
           {/* ── CIRCUIT SUMMARY (if any circuits defined) ───────────── */}
           {health.circuits.length > 0 && (
             <div className="report-section">
-              <div className="print-section-head" style={SECTION_HEAD}>
-                Circuit Summary
-              </div>
+              <HudSectionHead label="Circuit Summary" className="print-section-head" />
               <table style={TABLE}>
                 <thead>
                   <tr>

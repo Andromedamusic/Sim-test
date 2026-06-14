@@ -1,13 +1,23 @@
 /* ════════════════════════════════════════════════════════════════════════════
    PANEL VIEW — visual electrical breaker panel with circuit-level health,
    outlet assignment tracer, and inline circuit editing.
+
+   HUD Upgrade:
+   - MAIN PANEL enclosure with Bracket corner chrome + holo top-line
+   - Beveled breaker tiles with grade-colored glowing status LEDs
+   - Slot numbers, amp/voltage readouts in mono; ⚠ flags styled
+   - Selected breaker highlighted with bracket overlay + glow
+   - Circuit detail + tracer restyled as HUD panels
+   - Two-column real panel layout with column separators
    ════════════════════════════════════════════════════════════════════════════ */
 import React, { useMemo, useState } from "react";
 import { useStore } from "../../state/store";
 import { rollupHome } from "../../core";
 import type { CircuitNode } from "../../core";
-import { C, mono, GRADE_COLOR, VERDICT_COLOR, btn } from "../theme";
+import { C, mono, HUD, GRADE_COLOR, VERDICT_COLOR, btn } from "../theme";
 import { Card, Pill } from "../components";
+import { Bracket } from "../hud/Bracket";
+import { useReducedMotion } from "../anim";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,18 +34,19 @@ interface BreakerTileProps {
   hasSystemic: boolean;
   selected: boolean;
   tracing: boolean;
+  slotNumber: number;
+  reduced: boolean;
   onSelect: () => void;
   onUpdate: (c: CircuitNode) => void;
 }
 
-function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, onSelect, onUpdate }: BreakerTileProps) {
+function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, slotNumber, reduced, onSelect, onUpdate }: BreakerTileProps) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [editingAmp, setEditingAmp] = useState(false);
   const [labelDraft, setLabelDraft] = useState(circuit.breakerLabel);
   const [ampDraft, setAmpDraft] = useState(String(circuit.ampRating));
 
-  const gradeColor = GRADE_COLOR[grade] ?? C.dim;
-  const isSelected = selected;
+  const gradeColor = GRADE_COLOR[grade] ?? HUD.dim;
 
   function commitLabel() {
     const trimmed = labelDraft.trim();
@@ -53,43 +64,66 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, onSelect,
     setEditingAmp(false);
   }
 
+  const displaySlot = circuit.breakerSlot != null ? circuit.breakerSlot : slotNumber;
+
   return (
     <div
       onClick={onSelect}
       className="oi-lift oi-press"
       style={{
-        background: isSelected ? gradeColor + "22" : C.panel2,
-        border: `1.5px solid ${isSelected ? gradeColor : tracing ? C.amber : C.border}`,
-        borderRadius: 8,
-        padding: "8px 10px",
+        position: "relative",
+        background: selected
+          ? `linear-gradient(160deg, ${gradeColor}18 0%, ${HUD.panel}CC 100%)`
+          : `linear-gradient(160deg, #111720 0%, #0B1019 100%)`,
+        border: `1px solid ${selected ? gradeColor : tracing ? C.amber : HUD.line}`,
+        borderRadius: 6,
+        padding: "8px 9px 7px",
         cursor: "pointer",
         display: "flex",
         flexDirection: "column",
-        gap: 4,
+        gap: 5,
         minWidth: 0,
-        boxShadow: tracing ? `0 0 0 2px ${C.amber}55` : undefined,
+        boxShadow: selected
+          ? `0 0 0 1px ${gradeColor}44, 0 0 14px -4px ${gradeColor}55`
+          : tracing
+          ? `0 0 0 2px ${C.amber}44`
+          : "inset 0 1px 0 rgba(255,255,255,0.04)",
+        transition: "background 0.25s, border-color 0.2s, box-shadow 0.2s",
       }}
     >
-      {/* Slot number + health dot */}
+      {/* Selected bracket overlay */}
+      {selected && <Bracket color={gradeColor} size={7} weight={1.5} opacity={0.7} />}
+
+      {/* Top row: slot number + warning + LED */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontFamily: mono, fontSize: 9, color: C.dimmer, fontWeight: 700 }}>
-          {circuit.breakerSlot != null ? `#${circuit.breakerSlot}` : "—"}
+        <span style={{
+          fontFamily: mono, fontSize: 8, color: selected ? gradeColor : HUD.dimmer,
+          fontWeight: 700, letterSpacing: 1, lineHeight: 1,
+          transition: "color 0.2s",
+        }}>
+          #{String(displaySlot).padStart(2, "0")}
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           {hasSystemic && (
-            <span title="Systemic flag detected" style={{ fontSize: 11 }}>⚠</span>
+            <span title="Systemic flag detected" style={{
+              fontSize: 9, color: C.warn,
+              filter: `drop-shadow(0 0 3px ${C.warn}99)`,
+            }}>⚠</span>
           )}
-          <div
-            style={{
-              width: 9,
-              height: 9,
-              borderRadius: "50%",
-              background: gradeColor,
-              boxShadow: `0 0 5px ${gradeColor}99`,
-            }}
-          />
+          {/* Grade LED */}
+          <div style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: gradeColor,
+            boxShadow: reduced ? undefined : `0 0 6px 1px ${gradeColor}99, 0 0 2px ${gradeColor}`,
+            transition: "background 0.3s, box-shadow 0.3s",
+          }} />
         </div>
       </div>
+
+      {/* Bevel divider */}
+      <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${HUD.line}AA, transparent)`, margin: "0 -2px" }} />
 
       {/* Label (inline edit on dblclick) */}
       {editingLabel ? (
@@ -101,22 +135,28 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, onSelect,
           onKeyDown={(e) => { if (e.key === "Enter") commitLabel(); if (e.key === "Escape") setEditingLabel(false); }}
           onClick={(e) => e.stopPropagation()}
           style={{
-            background: "#0A0A0E", border: `1px solid ${C.border}`, borderRadius: 4,
-            padding: "2px 5px", fontSize: 11, fontFamily: mono, color: C.text, width: "100%",
+            background: "#080C13", border: `1px solid ${HUD.lineHi}`, borderRadius: 3,
+            padding: "2px 5px", fontSize: 10, fontFamily: mono, color: HUD.text, width: "100%",
           }}
         />
       ) : (
         <div
           onDoubleClick={(e) => { e.stopPropagation(); setLabelDraft(circuit.breakerLabel); setEditingLabel(true); }}
           title="Double-click to edit label"
-          style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          style={{
+            fontFamily: mono, fontSize: 11, fontWeight: 700,
+            color: selected ? HUD.text : HUD.dim,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            letterSpacing: 0.2,
+            transition: "color 0.2s",
+          }}
         >
           {circuit.breakerLabel}
         </div>
       )}
 
-      {/* Amp + voltage */}
-      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      {/* Amp + voltage row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
         {editingAmp ? (
           <input
             autoFocus
@@ -128,26 +168,36 @@ function BreakerTile({ circuit, grade, hasSystemic, selected, tracing, onSelect,
             type="number"
             min={1}
             style={{
-              background: "#0A0A0E", border: `1px solid ${C.border}`, borderRadius: 4,
-              padding: "1px 4px", fontSize: 10, fontFamily: mono, color: C.text, width: 48,
+              background: "#080C13", border: `1px solid ${HUD.lineHi}`, borderRadius: 3,
+              padding: "1px 4px", fontSize: 9, fontFamily: mono, color: HUD.text, width: 44,
             }}
           />
         ) : (
           <span
             onDoubleClick={(e) => { e.stopPropagation(); setAmpDraft(String(circuit.ampRating)); setEditingAmp(true); }}
             title="Double-click to edit amperage"
-            style={{ fontFamily: mono, fontSize: 10, color: C.dim }}
+            style={{ fontFamily: mono, fontSize: 9, color: selected ? gradeColor : HUD.dimmer, fontWeight: 700, letterSpacing: 0.5 }}
           >
             {circuit.ampRating}A
           </span>
         )}
-        <span style={{ fontFamily: mono, fontSize: 9, color: C.dimmer }}>{circuit.voltage}V</span>
+        <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 0.5 }}>{circuit.voltage}V</span>
         {circuit.isSharedNeutral && (
-          <span style={{ fontFamily: mono, fontSize: 8, color: C.warn, background: C.warn + "22", padding: "1px 4px", borderRadius: 3 }}>
+          <span style={{ fontFamily: mono, fontSize: 7, color: C.warn, background: `${C.warn}1A`, padding: "1px 4px", borderRadius: 3, letterSpacing: 0.5 }}>
             MWBC
           </span>
         )}
       </div>
+
+      {/* Tracing indicator bar */}
+      {tracing && (
+        <div style={{
+          height: 2,
+          borderRadius: 1,
+          background: `linear-gradient(90deg, ${C.amber}00, ${C.amber}, ${C.amber}00)`,
+          margin: "0 -2px -2px",
+        }} className={reduced ? "" : "oi-shimmer"} />
+      )}
     </div>
   );
 }
@@ -164,13 +214,13 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
   const startTracer = useStore((s) => s.startTracer);
   const stopTracer = useStore((s) => s.stopTracer);
   const assignOutletToTracer = useStore((s) => s.assignOutletToTracer);
+  const reduced = useReducedMotion();
 
   const circuit = model.circuits.find((c) => c.id === circuitId);
   if (!circuit) return null;
 
   const isTracing = tracerCircuitId === circuitId;
   const assignedOutlets = model.outlets.filter((o) => o.circuitId === circuitId);
-  // Outlets not yet assigned to this circuit (candidates while tracing)
   const unassignedOutlets = model.outlets.filter((o) => o.circuitId !== circuitId);
 
   const rooms = model.rooms;
@@ -182,46 +232,86 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
   }
 
   return (
-    <div className="oi-fadeup" style={{ marginTop: 14 }}>
-      {/* Circuit title */}
-      <div style={{ fontFamily: mono, fontSize: 9, color: C.blue, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-        CIRCUIT — {circuit.breakerLabel}
+    <div className="oi-fadeup" style={{ marginTop: 14, display: "grid", gap: 10 }}>
+      {/* Circuit header */}
+      <div style={{
+        background: HUD.panel,
+        border: `1px solid ${HUD.lineHi}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        position: "relative",
+      }}>
+        <Bracket color={HUD.cyan} size={7} weight={1.5} opacity={0.5} />
+        <div style={{ fontFamily: mono, fontSize: 8, color: HUD.cyan, fontWeight: 700, letterSpacing: 2, marginBottom: 2 }}>
+          SELECTED CIRCUIT
+        </div>
+        <div style={{ fontFamily: mono, fontSize: 14, color: HUD.text, fontWeight: 800, letterSpacing: 0.5 }}>
+          {circuit.breakerLabel}
+        </div>
+        <div style={{ fontFamily: mono, fontSize: 9, color: HUD.dim, marginTop: 2 }}>
+          {circuit.ampRating}A · {circuit.voltage}V
+          {circuit.isSharedNeutral && <span style={{ color: C.warn, marginLeft: 6 }}>MWBC</span>}
+          {circuit.notes && <span style={{ marginLeft: 8, color: HUD.dimmer }}>{circuit.notes}</span>}
+        </div>
       </div>
 
       {/* Assigned outlets */}
-      <Card title="OUTLETS ON THIS CIRCUIT" style={{ marginBottom: 10 }}>
+      <div style={{
+        background: HUD.panel,
+        border: `1px solid ${HUD.line}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        position: "relative",
+      }}>
+        <div style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 2, marginBottom: 8 }}>
+          OUTLETS ON THIS CIRCUIT
+        </div>
         {assignedOutlets.length === 0 ? (
-          <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11, padding: "4px 0" }}>
+          <div style={{ color: HUD.dimmer, fontFamily: mono, fontSize: 10, padding: "4px 0", letterSpacing: 0.5 }}>
             No outlets assigned. Use the tracer below.
           </div>
         ) : (
           <div className="oi-stagger" style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {assignedOutlets.map((o) => {
               const verdictCode = o.inference?.verdictCode;
-              const verdictColor = verdictCode ? (VERDICT_COLOR[verdictCode] ?? C.dim) : C.dimmer;
+              const verdictColor = verdictCode ? (VERDICT_COLOR[verdictCode] ?? HUD.dim) : HUD.dimmer;
               return (
-                <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${C.border}22` }}>
-                  <div>
-                    <span style={{ fontFamily: mono, fontSize: 12, color: C.text, fontWeight: 700 }}>{o.label}</span>
-                    <span style={{ fontFamily: mono, fontSize: 10, color: C.dim, marginLeft: 7 }}>{roomName(o.roomId)}</span>
+                <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${HUD.line}66` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: verdictColor, boxShadow: `0 0 4px ${verdictColor}` }} />
+                    <span style={{ fontFamily: mono, fontSize: 11, color: HUD.text, fontWeight: 700 }}>{o.label}</span>
+                    <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dim }}>{roomName(o.roomId)}</span>
                   </div>
                   {verdictCode ? (
                     <Pill color={verdictColor}>{verdictCode}</Pill>
                   ) : (
-                    <span style={{ fontFamily: mono, fontSize: 10, color: C.dimmer }}>unmeasured</span>
+                    <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dimmer, letterSpacing: 1 }}>UNMEASURED</span>
                   )}
                 </div>
               );
             })}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Tracer controls */}
-      <Card title="CIRCUIT TRACER">
+      <div style={{
+        background: isTracing ? `${C.amber}0A` : HUD.panel,
+        border: `1px solid ${isTracing ? `${C.amber}55` : HUD.line}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        position: "relative",
+        transition: "background 0.3s, border-color 0.3s",
+      }}>
+        {isTracing && <Bracket color={C.amber} size={8} weight={1.5} opacity={0.7} />}
+
+        <div style={{ fontFamily: mono, fontSize: 8, color: isTracing ? C.amber : HUD.dimmer, letterSpacing: 2, marginBottom: 8, fontWeight: 700 }}>
+          CIRCUIT TRACER
+        </div>
+
         {!isTracing ? (
           <div>
-            <p style={{ margin: "0 0 10px", fontFamily: mono, fontSize: 11, color: C.dim, lineHeight: 1.6 }}>
+            <p style={{ margin: "0 0 10px", fontFamily: mono, fontSize: 10, color: HUD.dim, lineHeight: 1.7, letterSpacing: 0.3 }}>
               Activate the tracer, then tap any unassigned outlet to assign it to this
               circuit. Useful when wiring isn't labelled or panel markings are missing.
             </p>
@@ -235,16 +325,16 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
           </div>
         ) : (
           <div>
-            <div className="oi-pulse" style={{ color: C.amber, fontFamily: mono, fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-              TRACING ACTIVE — tap an outlet below to assign it
+            <div className={reduced ? "" : "oi-pulse"} style={{ color: C.amber, fontFamily: mono, fontSize: 11, fontWeight: 800, marginBottom: 8, letterSpacing: 1 }}>
+              TRACING ACTIVE — TAP AN OUTLET BELOW TO ASSIGN
             </div>
-            <p style={{ margin: "0 0 10px", fontFamily: mono, fontSize: 10, color: C.dim, lineHeight: 1.5 }}>
+            <p style={{ margin: "0 0 10px", fontFamily: mono, fontSize: 9, color: HUD.dim, lineHeight: 1.7, letterSpacing: 0.3 }}>
               Go to each outlet, use a non-contact tester or plug a lamp, and tap it here
               when it responds to toggling this breaker. Press Done when finished.
             </p>
 
             {unassignedOutlets.length === 0 ? (
-              <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 11, marginBottom: 10 }}>
+              <div style={{ color: HUD.dimmer, fontFamily: mono, fontSize: 10, marginBottom: 10, letterSpacing: 0.5 }}>
                 All outlets are already assigned to a circuit.
               </div>
             ) : (
@@ -259,9 +349,9 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
                     }}
                     className="oi-press oi-lift"
                     style={{
-                      background: C.panel2,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 7,
+                      background: `linear-gradient(90deg, ${C.amber}08, transparent)`,
+                      border: `1px solid ${HUD.lineHi}`,
+                      borderRadius: 6,
                       padding: "7px 10px",
                       cursor: "pointer",
                       display: "flex",
@@ -271,14 +361,14 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
                     }}
                   >
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1 }}>
-                      <span style={{ fontFamily: mono, fontSize: 12, color: C.text, fontWeight: 700 }}>{o.label}</span>
-                      <span style={{ fontFamily: mono, fontSize: 9, color: C.dim }}>
+                      <span style={{ fontFamily: mono, fontSize: 11, color: HUD.text, fontWeight: 700 }}>{o.label}</span>
+                      <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dim, letterSpacing: 0.5 }}>
                         {roomName(o.roomId)}
                         {o.circuitId && o.circuitId !== circuitId && <span style={{ color: C.warn }}> · on {circuitLabelOf(o.circuitId)}</span>}
                       </span>
                     </div>
-                    <span style={{ fontFamily: mono, fontSize: 10, color: o.circuitId && o.circuitId !== circuitId ? C.warn : C.amber }}>
-                      {o.circuitId && o.circuitId !== circuitId ? "Move →" : "Assign +"}
+                    <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, color: o.circuitId && o.circuitId !== circuitId ? C.warn : C.amber, letterSpacing: 1 }}>
+                      {o.circuitId && o.circuitId !== circuitId ? "MOVE →" : "ASSIGN +"}
                     </span>
                   </button>
                 ))}
@@ -294,7 +384,7 @@ function CircuitDetail({ circuitId }: CircuitDetailProps) {
             </button>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
@@ -326,9 +416,9 @@ function AddCircuitButton() {
       onClick={handleAdd}
       disabled={busy}
       className="oi-press"
-      style={{ ...btn(C.blue, true), opacity: busy ? 0.5 : 1 }}
+      style={{ ...btn(HUD.cyan, true), opacity: busy ? 0.5 : 1, letterSpacing: 1, fontSize: 11 }}
     >
-      + Add Breaker
+      + ADD BREAKER
     </button>
   );
 }
@@ -340,8 +430,8 @@ export function PanelView() {
   const updateCircuit = useStore((s) => s.updateCircuit);
   const tracerCircuitId = useStore((s) => s.tracerCircuitId);
   const [selectedCircuitId, setSelectedCircuitId] = useState<string | null>(null);
-  // Memoize the home rollup — it is O(outlets×circuits) and re-runs on every
-  // store mutation (model identity changes on each write).
+  const reduced = useReducedMotion();
+
   const health = useMemo(() => (model ? rollupHome(model) : null), [model]);
 
   if (!model || !health) return null;
@@ -355,7 +445,7 @@ export function PanelView() {
     return a.breakerSlot - b.breakerSlot;
   });
 
-  // Split into two columns (left = odd slots, right = even, or just half-half)
+  // Split into two columns (left = even indices, right = odd)
   const leftCol: CircuitNode[] = [];
   const rightCol: CircuitNode[] = [];
   sorted.forEach((c, i) => {
@@ -370,15 +460,15 @@ export function PanelView() {
     <div style={{ padding: "14px 12px" }}>
       {/* Header */}
       <div className="oi-fadeup" style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: mono, fontSize: 9, color: C.blue, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>
+        <div style={{ fontFamily: mono, fontSize: 8, color: HUD.cyan, fontWeight: 700, letterSpacing: 2, marginBottom: 4, opacity: 0.85 }}>
           ELECTRICAL PANEL
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.text, lineHeight: 1.2 }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: HUD.text, lineHeight: 1.2, letterSpacing: 0.5 }}>
               Main Panel
             </h2>
-            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 10, color: C.dim }}>
+            <p style={{ margin: "4px 0 0", fontFamily: mono, fontSize: 9, color: HUD.dim, letterSpacing: 0.5 }}>
               {model.circuits.length} circuit{model.circuits.length !== 1 ? "s" : ""} &middot; double-click a breaker to edit label or amperage
             </p>
           </div>
@@ -388,85 +478,162 @@ export function PanelView() {
 
       {/* Tracer status banner */}
       {tracerCircuitId && tracerCircuitId !== selectedCircuitId && (
-        <div className="oi-pulse" style={{
-          background: C.amber + "18",
+        <div className={reduced ? "" : "oi-pulse"} style={{
+          background: `${C.amber}12`,
           border: `1px solid ${C.amber}55`,
-          borderRadius: 8,
+          borderRadius: 6,
           padding: "8px 12px",
           fontFamily: mono,
-          fontSize: 11,
+          fontSize: 10,
           color: C.amber,
           marginBottom: 12,
+          letterSpacing: 1,
         }}>
-          TRACER ACTIVE on {model.circuits.find((c) => c.id === tracerCircuitId)?.breakerLabel ?? "unknown"}
+          ● TRACER ACTIVE on {model.circuits.find((c) => c.id === tracerCircuitId)?.breakerLabel ?? "unknown"}
           {" "}— select that circuit below to manage it.
         </div>
       )}
 
       {model.circuits.length === 0 ? (
-        <div style={{ color: C.dimmer, fontFamily: mono, fontSize: 12, padding: "24px 0", textAlign: "center" }}>
-          No circuits yet. Add a breaker above to begin.
+        <div style={{ color: HUD.dimmer, fontFamily: mono, fontSize: 11, padding: "24px 0", textAlign: "center", letterSpacing: 1 }}>
+          NO CIRCUITS YET — ADD A BREAKER ABOVE TO BEGIN
         </div>
       ) : (
-        /* Panel frame */
+        /* Main panel enclosure */
         <div style={{
-          background: C.panel2,
-          border: `2px solid ${C.border}`,
-          borderRadius: 14,
-          padding: "14px 12px",
+          background: `linear-gradient(180deg, #0D1520 0%, #0A1018 100%)`,
+          border: `1.5px solid ${HUD.lineHi}`,
+          borderRadius: 12,
+          padding: "16px 14px 14px",
           position: "relative",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px -16px #000C",
         }}>
-          {/* Panel label */}
+          {/* Panel corner brackets */}
+          <Bracket color={HUD.cyan} size={14} weight={1.5} opacity={0.55} />
+
+          {/* Holo top scan-line */}
+          <div style={{
+            position: "absolute",
+            top: 0, left: 0, right: 0,
+            height: 1,
+            borderRadius: "12px 12px 0 0",
+            background: `linear-gradient(90deg, transparent, ${HUD.cyan}66, transparent)`,
+            pointerEvents: "none",
+          }} />
+
+          {/* Panel name plate */}
           <div style={{
             fontFamily: mono,
-            fontSize: 9,
+            fontSize: 8,
             fontWeight: 700,
-            color: C.dimmer,
-            letterSpacing: 2,
+            color: HUD.dimmer,
+            letterSpacing: 3,
             textAlign: "center",
-            marginBottom: 12,
-            borderBottom: `1px solid ${C.border}`,
-            paddingBottom: 8,
+            marginBottom: 14,
+            paddingBottom: 10,
+            borderBottom: `1px solid ${HUD.line}`,
+            position: "relative",
           }}>
+            {/* Center nameplate glow line */}
+            <div style={{
+              position: "absolute",
+              bottom: -1, left: "25%", right: "25%",
+              height: 1,
+              background: `linear-gradient(90deg, transparent, ${HUD.cyan}55, transparent)`,
+            }} />
             200A MAIN SERVICE PANEL
           </div>
 
-          {/* Two-column breaker grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }} className="oi-stagger">
-            {sorted.map((circuit) => {
-              const ch = circuitHealthById.get(circuit.id);
-              const grade = ch?.grade ?? "GREEN";
-              const hasSystemic = (ch?.systemicFlags.length ?? 0) > 0;
+          {/* Column headers */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 4px 1fr", gap: "0 8px", marginBottom: 8 }}>
+            <div style={{ fontFamily: mono, fontSize: 7, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE A</div>
+            <div />
+            <div style={{ fontFamily: mono, fontSize: 7, color: HUD.dimmer, letterSpacing: 2, textAlign: "center" }}>LINE B</div>
+          </div>
+
+          {/* Two-column breaker grid with bus bar divider */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 4px 1fr", gap: "6px 8px" }} className="oi-stagger">
+            {Array.from({ length: Math.max(leftCol.length, rightCol.length) }).map((_, rowIdx) => {
+              const leftCircuit = leftCol[rowIdx];
+              const rightCircuit = rightCol[rowIdx];
+              const leftGlobalIdx = rowIdx * 2;
+              const rightGlobalIdx = rowIdx * 2 + 1;
               return (
-                <BreakerTile
-                  key={circuit.id}
-                  circuit={circuit}
-                  grade={grade}
-                  hasSystemic={hasSystemic}
-                  selected={selectedCircuitId === circuit.id}
-                  tracing={tracerCircuitId === circuit.id}
-                  onSelect={() => handleSelectCircuit(circuit.id)}
-                  onUpdate={updateCircuit}
-                />
+                <React.Fragment key={rowIdx}>
+                  {/* Left breaker */}
+                  {leftCircuit ? (
+                    <BreakerTile
+                      circuit={leftCircuit}
+                      grade={circuitHealthById.get(leftCircuit.id)?.grade ?? "GREEN"}
+                      hasSystemic={(circuitHealthById.get(leftCircuit.id)?.systemicFlags.length ?? 0) > 0}
+                      selected={selectedCircuitId === leftCircuit.id}
+                      tracing={tracerCircuitId === leftCircuit.id}
+                      slotNumber={leftGlobalIdx + 1}
+                      reduced={reduced}
+                      onSelect={() => handleSelectCircuit(leftCircuit.id)}
+                      onUpdate={updateCircuit}
+                    />
+                  ) : <div />}
+
+                  {/* Bus bar center divider */}
+                  <div style={{
+                    display: "flex",
+                    alignItems: "stretch",
+                    justifyContent: "center",
+                  }}>
+                    <div style={{
+                      width: 2,
+                      background: `linear-gradient(180deg, ${HUD.line}, ${HUD.lineHi}, ${HUD.line})`,
+                      borderRadius: 1,
+                      opacity: 0.6,
+                    }} />
+                  </div>
+
+                  {/* Right breaker */}
+                  {rightCircuit ? (
+                    <BreakerTile
+                      circuit={rightCircuit}
+                      grade={circuitHealthById.get(rightCircuit.id)?.grade ?? "GREEN"}
+                      hasSystemic={(circuitHealthById.get(rightCircuit.id)?.systemicFlags.length ?? 0) > 0}
+                      selected={selectedCircuitId === rightCircuit.id}
+                      tracing={tracerCircuitId === rightCircuit.id}
+                      slotNumber={rightGlobalIdx + 1}
+                      reduced={reduced}
+                      onSelect={() => handleSelectCircuit(rightCircuit.id)}
+                      onUpdate={updateCircuit}
+                    />
+                  ) : <div />}
+                </React.Fragment>
               );
             })}
           </div>
 
           {/* Legend */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+          <div style={{
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            marginTop: 14,
+            paddingTop: 10,
+            borderTop: `1px solid ${HUD.line}`,
+          }}>
             {(["GREEN", "YELLOW", "AMBER", "RED"] as const).map((g) => (
-              <div key={g} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: GRADE_COLOR[g] }} />
-                <span style={{ fontFamily: mono, fontSize: 9, color: C.dimmer }}>{g}</span>
+              <div key={g} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: GRADE_COLOR[g],
+                  boxShadow: reduced ? undefined : `0 0 5px ${GRADE_COLOR[g]}88`,
+                }} />
+                <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer, letterSpacing: 0.5 }}>{g}</span>
               </div>
             ))}
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontSize: 10 }}>⚠</span>
-              <span style={{ fontFamily: mono, fontSize: 9, color: C.dimmer }}>Systemic flag</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 9, color: C.warn }}>⚠</span>
+              <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer }}>Systemic flag</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontFamily: mono, fontSize: 9, color: C.warn }}>MWBC</span>
-              <span style={{ fontFamily: mono, fontSize: 9, color: C.dimmer }}>= shared neutral</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontFamily: mono, fontSize: 8, color: C.warn, letterSpacing: 0.5 }}>MWBC</span>
+              <span style={{ fontFamily: mono, fontSize: 8, color: HUD.dimmer }}>=shared neutral</span>
             </div>
           </div>
         </div>
@@ -478,28 +645,38 @@ export function PanelView() {
       {/* Systemic flags summary */}
       {health.systemicFlags.length > 0 && (
         <div style={{ marginTop: 14 }}>
-          <Card title="SYSTEMIC FLAGS">
+          <div style={{
+            background: `${C.bad}08`,
+            border: `1px solid ${C.bad}44`,
+            borderRadius: 8,
+            padding: "12px 14px",
+            position: "relative",
+          }}>
+            <Bracket color={C.bad} size={8} weight={1.5} opacity={0.5} />
+            <div style={{ fontFamily: mono, fontSize: 8, color: C.bad, fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>
+              SYSTEMIC FLAGS
+            </div>
             <div className="oi-stagger" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {health.systemicFlags.map((fl, i) => {
-                const urgencyColor = fl.urgency === "IMMEDIATE" ? C.bad : fl.urgency === "SOON" ? C.warn : C.dim;
+                const urgencyColor = fl.urgency === "IMMEDIATE" ? C.bad : fl.urgency === "SOON" ? C.warn : HUD.dim;
                 const scopeLabel = fl.scope === "circuit"
                   ? (model.circuits.find((c) => c.id === fl.scopeId)?.breakerLabel ?? fl.scopeId)
                   : (model.rooms.find((r) => r.id === fl.scopeId)?.name ?? fl.scopeId);
                 return (
-                  <div key={i} style={{ borderBottom: `1px solid ${C.border}22`, paddingBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                  <div key={i} style={{ borderBottom: `1px solid ${HUD.line}44`, paddingBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <Pill color={urgencyColor}>{fl.urgency}</Pill>
-                      <span style={{ fontFamily: mono, fontSize: 10, color: C.dim }}>
+                      <span style={{ fontFamily: mono, fontSize: 9, color: HUD.dim, letterSpacing: 0.5 }}>
                         {fl.scope.toUpperCase()}: {scopeLabel}
                       </span>
                     </div>
-                    <div style={{ fontFamily: mono, fontSize: 11, color: C.text, marginBottom: 3 }}>{fl.description}</div>
-                    <div style={{ fontFamily: mono, fontSize: 10, color: C.dim, lineHeight: 1.5 }}>{fl.remedy}</div>
+                    <div style={{ fontFamily: mono, fontSize: 11, color: HUD.text, marginBottom: 3 }}>{fl.description}</div>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: HUD.dim, lineHeight: 1.6 }}>{fl.remedy}</div>
                   </div>
                 );
               })}
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>

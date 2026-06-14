@@ -27,7 +27,7 @@ import React, { useMemo, useRef, useState, useCallback } from "react";
 import { useStore } from "../../state/store";
 import { tribunal, type OutletNode, type RoomNode, type WallId, type Observation, type Meta,
          outletWorldPos, nearestEdge, roomPolygonWorld, polygonBBox, type Vec2 } from "../../core";
-import { C, mono, HUD, VERDICT_COLOR, GRADE_COLOR, glow } from "../theme";
+import { C, mono, HUD, VERDICT_COLOR, GRADE_COLOR } from "../theme";
 import { useReducedMotion } from "../anim";
 import { Card, Field, NumberInput, TextInput, Select, TriToggle, Sheet, Row, Bar } from "../components";
 import { OutletMarker } from "../viz/floorplan/OutletMarker";
